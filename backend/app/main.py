@@ -1,0 +1,26 @@
+from fastapi import FastAPI
+
+from app.api.health import router as health_router
+from app.core.config import settings
+
+
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+    description=(
+        "Enterprise data quality and cross-system "
+        "reconciliation platform."
+    )
+)
+
+
+app.include_router(health_router)
+
+
+@app.get("/")
+def root():
+    return {
+        "message": "Enterprise Data Reconciliation Engine API",
+        "version": settings.app_version,
+        "status": "running"
+    }
