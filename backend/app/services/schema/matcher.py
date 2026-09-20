@@ -1,4 +1,5 @@
 from app.services.schema.normalizer import normalize_column_name
+from app.services.schema.semantic_matcher import find_semantic_matches
 
 
 def compare_schemas(
@@ -6,11 +7,15 @@ def compare_schemas(
     target_columns: list[str],
 ) -> dict:
     """
-    Compare two dataset schemas using deterministic
-    column-name normalization.
+    Compare two dataset schemas using deterministic matching
+    followed by semantic potential matching.
 
-    Matching order at this stage:
-    normalized exact match only.
+    Matching order:
+    1. Normalized exact match
+    2. Potential semantic match
+
+    Semantic matches are suggestions and are not counted
+    as confirmed matches.
     """
 
     source_normalized = {
@@ -72,6 +77,11 @@ def compare_schemas(
         if column not in matched_target_columns
     ]
 
+    potential_matches = find_semantic_matches(
+        unmatched_source_columns,
+        unmatched_target_columns,
+    )
+
     total_source_columns = len(source_columns)
     total_target_columns = len(target_columns)
     matched_count = len(matched_columns)
@@ -92,6 +102,7 @@ def compare_schemas(
             "source_column_count": total_source_columns,
             "target_column_count": total_target_columns,
             "matched_column_count": matched_count,
+            "potential_match_count": len(potential_matches),
             "unmatched_source_column_count": len(
                 unmatched_source_columns
             ),
@@ -104,6 +115,7 @@ def compare_schemas(
             ),
         },
         "matched_columns": matched_columns,
+        "potential_matches": potential_matches,
         "unmatched_source_columns": unmatched_source_columns,
         "unmatched_target_columns": unmatched_target_columns,
     }

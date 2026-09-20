@@ -48,10 +48,13 @@ def test_compare_schemas_finds_normalized_matches():
         },
     ]
 
+    assert result["potential_matches"] == []
+
     assert result["summary"] == {
         "source_column_count": 4,
         "target_column_count": 4,
         "matched_column_count": 4,
+        "potential_match_count": 0,
         "unmatched_source_column_count": 0,
         "unmatched_target_column_count": 0,
         "match_percentage": 100.0,
@@ -88,10 +91,20 @@ def test_compare_schemas_identifies_unmatched_columns():
         }
     ]
 
+    assert result["potential_matches"] == [
+        {
+            "source_column": "amount",
+            "target_column": "transaction_amount",
+            "semantic_group": "amount",
+            "match_type": "potential_semantic",
+        }
+    ]
+
     assert result["summary"] == {
         "source_column_count": 3,
         "target_column_count": 3,
         "matched_column_count": 1,
+        "potential_match_count": 1,
         "unmatched_source_column_count": 2,
         "unmatched_target_column_count": 2,
         "match_percentage": 33.33,
@@ -115,12 +128,14 @@ def test_compare_schemas_with_empty_schemas():
         "source_column_count": 0,
         "target_column_count": 0,
         "matched_column_count": 0,
+        "potential_match_count": 0,
         "unmatched_source_column_count": 0,
         "unmatched_target_column_count": 0,
         "match_percentage": 100.0,
     }
 
     assert result["matched_columns"] == []
+    assert result["potential_matches"] == []
     assert result["unmatched_source_columns"] == []
     assert result["unmatched_target_columns"] == []
 
@@ -163,6 +178,7 @@ def test_compare_schemas_with_different_column_counts():
         "source_column_count": 4,
         "target_column_count": 2,
         "matched_column_count": 2,
+        "potential_match_count": 0,
         "unmatched_source_column_count": 2,
         "unmatched_target_column_count": 0,
         "match_percentage": 50.0,
