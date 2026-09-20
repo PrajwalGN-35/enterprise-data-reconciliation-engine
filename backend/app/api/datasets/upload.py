@@ -16,6 +16,9 @@ from app.services.ingestion.profiler import (
 from app.services.ingestion.quality import (
     calculate_quality_summary,
 )
+from app.services.schema.transformer import (
+    normalize_dataframe_columns,
+)
 
 
 router = APIRouter(
@@ -34,7 +37,8 @@ async def upload_dataset(
 ):
     """
     Upload a dataset and return metadata,
-    profiling information, and quality summary.
+    profiling information, quality summary,
+    and normalized schema information.
     """
 
     allowed_extensions = {
@@ -81,23 +85,35 @@ async def upload_dataset(
             str(file_path)
         )
 
+        original_columns = list(dataframe.columns)
+
+        normalized_dataframe = normalize_dataframe_columns(
+            dataframe
+        )
+
         metadata = generate_dataset_metadata(
             str(file_path),
             dataframe,
         )
 
         profile = profile_dataset(
-            dataframe
+            normalized_dataframe
         )
 
         quality = calculate_quality_summary(
-            dataframe
+            normalized_dataframe
         )
 
         return {
             "status": "success",
             "original_file_name": file.filename,
             "stored_file_name": safe_filename,
+            "schema": {
+                "original_columns": original_columns,
+                "normalized_columns": list(
+                    normalized_dataframe.columns
+                ),
+            },
             "metadata": metadata,
             "profile": profile,
             "quality": quality,

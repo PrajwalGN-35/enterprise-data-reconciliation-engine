@@ -34,6 +34,22 @@ def test_upload_valid_csv():
     assert data["status"] == "success"
     assert data["original_file_name"] == "test_customers.csv"
 
+    assert data["schema"]["original_columns"] == [
+        "customer_id",
+        "customer_name",
+        "email",
+        "amount",
+        "transaction_date",
+    ]
+
+    assert data["schema"]["normalized_columns"] == [
+        "customer_id",
+        "customer_name",
+        "email",
+        "amount",
+        "transaction_date",
+    ]
+
     assert data["metadata"]["row_count"] == 3
     assert data["metadata"]["column_count"] == 5
 
