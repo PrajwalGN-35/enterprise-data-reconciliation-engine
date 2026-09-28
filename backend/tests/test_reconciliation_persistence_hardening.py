@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -27,7 +26,7 @@ def _files(source: str, target: str):
     }
 
 
-def test_failed_reconciliation_rolls_back_database_transaction():
+def test_failed_reconciliation_persists_failed_run_and_audit():
     source = (
         "customer_id,email,amount\n"
         "C001,alice@example.com,1000\n"
@@ -56,17 +55,31 @@ def test_failed_reconciliation_rolls_back_database_transaction():
 
     db = SessionLocal()
     try:
-        failed_runs = (
+        failed_run = (
             db.query(ReconciliationRun)
             .filter(
                 ReconciliationRun.source_file_name == "source.csv",
                 ReconciliationRun.target_file_name == "target.csv",
-                ReconciliationRun.status == "running",
+                ReconciliationRun.status == "failed",
             )
-            .count()
+            .order_by(ReconciliationRun.created_at.desc())
+            .first()
         )
 
-        assert failed_runs == 0
+        assert failed_run is not None
+        assert failed_run.completed_at is not None
+
+        audit = (
+            db.query(AuditLog)
+            .filter(
+                AuditLog.entity_id == failed_run.id,
+                AuditLog.action == "reconciliation_failed",
+            )
+            .first()
+        )
+
+        assert audit is not None
+        assert "simulated reconciliation failure" in audit.details
     finally:
         db.close()
 

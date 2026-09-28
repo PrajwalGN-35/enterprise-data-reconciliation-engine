@@ -17,7 +17,7 @@ from app.api.reconciliation_history_schemas import (
     ReconciliationRunHistoryResponse,
 )
 from app.api.reconciliation_schemas import ReconciliationRunResponse
-from app.core.database import get_db
+from app.core.database import SessionLocal, get_db
 from app.models import AuditLog, ReconciliationRun
 from app.services.ingestion.loader import (
     DatasetIngestionError,
@@ -92,6 +92,54 @@ async def _save_upload(
     file_path.write_bytes(contents)
 
     return file_path
+
+
+def _persist_failed_run(
+    db: Session,
+    run: ReconciliationRun,
+    source_file_name: str,
+    target_file_name: str,
+    started_at: datetime,
+    error_type: str,
+    error_message: str,
+) -> None:
+    db.rollback()
+
+    failed_db = SessionLocal()
+
+    try:
+        failed_run = ReconciliationRun(
+            id=run.id,
+            source_file_name=source_file_name,
+            target_file_name=target_file_name,
+            status="failed",
+            started_at=started_at,
+            completed_at=datetime.now(timezone.utc),
+        )
+
+        failed_db.add(failed_run)
+        failed_db.flush()
+
+        failed_db.add(
+            AuditLog(
+                action="reconciliation_failed",
+                entity_type="reconciliation_run",
+                entity_id=failed_run.id,
+                details=json.dumps(
+                    {
+                        "source_file_name": source_file_name,
+                        "target_file_name": target_file_name,
+                        "status": "failed",
+                        "error_type": error_type,
+                        "error": error_message,
+                    }
+                ),
+            )
+        )
+
+        failed_db.commit()
+    finally:
+        failed_db.close()
 
 
 @router.post(
@@ -202,25 +250,57 @@ async def run_reconciliation(
             }
 
         except DatasetIngestionError as exc:
-            db.rollback()
+            _persist_failed_run(
+                db=db,
+                run=run,
+                source_file_name=source_file.filename or "unknown",
+                target_file_name=target_file.filename or "unknown",
+                started_at=started_at,
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+            )
             raise HTTPException(
                 status_code=400,
                 detail=str(exc),
             ) from exc
 
         except ValueError as exc:
-            db.rollback()
+            _persist_failed_run(
+                db=db,
+                run=run,
+                source_file_name=source_file.filename or "unknown",
+                target_file_name=target_file.filename or "unknown",
+                started_at=started_at,
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+            )
             raise HTTPException(
                 status_code=400,
                 detail=str(exc),
             ) from exc
 
-        except HTTPException:
-            db.rollback()
+        except HTTPException as exc:
+            _persist_failed_run(
+                db=db,
+                run=run,
+                source_file_name=source_file.filename or "unknown",
+                target_file_name=target_file.filename or "unknown",
+                started_at=started_at,
+                error_type="HTTPException",
+                error_message=str(exc.detail),
+            )
             raise
 
         except Exception as exc:
-            db.rollback()
+            _persist_failed_run(
+                db=db,
+                run=run,
+                source_file_name=source_file.filename or "unknown",
+                target_file_name=target_file.filename or "unknown",
+                started_at=started_at,
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+            )
             raise HTTPException(
                 status_code=500,
                 detail=f"Reconciliation failed: {exc}",
