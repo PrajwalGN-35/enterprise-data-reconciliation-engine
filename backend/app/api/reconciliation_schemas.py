@@ -1,10 +1,11 @@
-﻿from typing import Any
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 
 class ReconciliationRunResponse(BaseModel):
     status: str
+    run_id: str
     source_file_name: str
     target_file_name: str
     schema_comparison: dict[str, Any]
