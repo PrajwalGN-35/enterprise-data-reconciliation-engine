@@ -2,13 +2,20 @@ from dataclasses import asdict
 from pathlib import Path
 import json
 import tempfile
-
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.api.reconciliation_history_schemas import (
+    AuditLogResponse,
+    ReconciliationAuditResponse,
+    ReconciliationRunDetailResponse,
+    ReconciliationRunHistoryItem,
+    ReconciliationRunHistoryResponse,
+)
 from app.api.reconciliation_schemas import ReconciliationRunResponse
 from app.core.database import get_db
 from app.models import AuditLog, ReconciliationRun
@@ -110,20 +117,30 @@ async def run_reconciliation(
 
     started_at = datetime.now(timezone.utc)
 
+    run = ReconciliationRun(
+        source_file_name=source_file.filename or "unknown",
+        target_file_name=target_file.filename or "unknown",
+        status="running",
+        started_at=started_at,
+    )
+
+    db.add(run)
+    db.flush()
+
     with tempfile.TemporaryDirectory() as temporary_directory:
         directory = Path(temporary_directory)
 
-        source_path = await _save_upload(
-            source_file,
-            directory / "source",
-        )
-
-        target_path = await _save_upload(
-            target_file,
-            directory / "target",
-        )
-
         try:
+            source_path = await _save_upload(
+                source_file,
+                directory / "source",
+            )
+
+            target_path = await _save_upload(
+                target_file,
+                directory / "target",
+            )
+
             source_dataframe = load_dataset(str(source_path))
             target_dataframe = load_dataset(str(target_path))
 
@@ -135,53 +152,20 @@ async def run_reconciliation(
             )
 
             completed_at = datetime.now(timezone.utc)
-
             summary = workflow.summary
 
-            run = ReconciliationRun(
-                source_file_name=(
-                    source_file.filename or "unknown"
-                ),
-                target_file_name=(
-                    target_file.filename or "unknown"
-                ),
-                status="completed",
-                started_at=started_at,
-                completed_at=completed_at,
-                source_record_count=(
-                    summary.source_record_count
-                ),
-                target_record_count=(
-                    summary.target_record_count
-                ),
-                matched_record_count=(
-                    summary.matched_record_count
-                ),
-                discrepancy_record_count=(
-                    summary.discrepancy_record_count
-                ),
-                missing_target_record_count=(
-                    summary.missing_target_record_count
-                ),
-                review_required_record_count=(
-                    summary.review_required_record_count
-                ),
-                total_discrepancy_count=(
-                    summary.total_discrepancy_count
-                ),
-                reconciliation_percentage=(
-                    summary.reconciliation_percentage
-                ),
-                exception_percentage=(
-                    summary.exception_percentage
-                ),
-                field_discrepancy_counts=(
-                    summary.field_discrepancy_counts
-                ),
-            )
-
-            db.add(run)
-            db.flush()
+            run.status = "completed"
+            run.completed_at = completed_at
+            run.source_record_count = summary.source_record_count
+            run.target_record_count = summary.target_record_count
+            run.matched_record_count = summary.matched_record_count
+            run.discrepancy_record_count = summary.discrepancy_record_count
+            run.missing_target_record_count = summary.missing_target_record_count
+            run.review_required_record_count = summary.review_required_record_count
+            run.total_discrepancy_count = summary.total_discrepancy_count
+            run.reconciliation_percentage = summary.reconciliation_percentage
+            run.exception_percentage = summary.exception_percentage
+            run.field_discrepancy_counts = summary.field_discrepancy_counts
 
             audit_log = AuditLog(
                 action="reconciliation_completed",
@@ -212,12 +196,8 @@ async def run_reconciliation(
             return {
                 "status": "success",
                 "run_id": run.id,
-                "source_file_name": (
-                    source_file.filename or "unknown"
-                ),
-                "target_file_name": (
-                    target_file.filename or "unknown"
-                ),
+                "source_file_name": source_file.filename or "unknown",
+                "target_file_name": target_file.filename or "unknown",
                 **encoded_workflow,
             }
 
@@ -245,22 +225,6 @@ async def run_reconciliation(
                 status_code=500,
                 detail=f"Reconciliation failed: {exc}",
             ) from exc
-
-
-from datetime import datetime, timezone
-
-from fastapi import HTTPException
-from sqlalchemy import func
-from sqlalchemy.orm import Session
-
-from app.models import AuditLog, ReconciliationRun
-from app.api.reconciliation_history_schemas import (
-    AuditLogResponse,
-    ReconciliationAuditResponse,
-    ReconciliationRunDetailResponse,
-    ReconciliationRunHistoryItem,
-    ReconciliationRunHistoryResponse,
-)
 
 
 @router.get(
@@ -317,21 +281,11 @@ def get_reconciliation_runs(
                 source_record_count=run.source_record_count,
                 target_record_count=run.target_record_count,
                 matched_record_count=run.matched_record_count,
-                discrepancy_record_count=(
-                    run.discrepancy_record_count
-                ),
-                missing_target_record_count=(
-                    run.missing_target_record_count
-                ),
-                review_required_record_count=(
-                    run.review_required_record_count
-                ),
-                total_discrepancy_count=(
-                    run.total_discrepancy_count
-                ),
-                reconciliation_percentage=(
-                    run.reconciliation_percentage
-                ),
+                discrepancy_record_count=run.discrepancy_record_count,
+                missing_target_record_count=run.missing_target_record_count,
+                review_required_record_count=run.review_required_record_count,
+                total_discrepancy_count=run.total_discrepancy_count,
+                reconciliation_percentage=run.reconciliation_percentage,
                 exception_percentage=run.exception_percentage,
             )
             for run in runs
@@ -374,20 +328,12 @@ def get_reconciliation_run(
         target_record_count=run.target_record_count,
         matched_record_count=run.matched_record_count,
         discrepancy_record_count=run.discrepancy_record_count,
-        missing_target_record_count=(
-            run.missing_target_record_count
-        ),
-        review_required_record_count=(
-            run.review_required_record_count
-        ),
+        missing_target_record_count=run.missing_target_record_count,
+        review_required_record_count=run.review_required_record_count,
         total_discrepancy_count=run.total_discrepancy_count,
-        reconciliation_percentage=(
-            run.reconciliation_percentage
-        ),
+        reconciliation_percentage=run.reconciliation_percentage,
         exception_percentage=run.exception_percentage,
-        field_discrepancy_counts=(
-            run.field_discrepancy_counts or {}
-        ),
+        field_discrepancy_counts=run.field_discrepancy_counts or {},
     )
 
 
@@ -432,5 +378,3 @@ def get_reconciliation_audit(
             for audit in audit_logs
         ],
     )
-
-
