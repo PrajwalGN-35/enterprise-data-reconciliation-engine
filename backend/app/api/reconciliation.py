@@ -1,8 +1,9 @@
-﻿from dataclasses import asdict
-from datetime import datetime, timezone
+from dataclasses import asdict
 from pathlib import Path
 import json
 import tempfile
+
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.encoders import jsonable_encoder
@@ -244,4 +245,192 @@ async def run_reconciliation(
                 status_code=500,
                 detail=f"Reconciliation failed: {exc}",
             ) from exc
+
+
+from datetime import datetime, timezone
+
+from fastapi import HTTPException
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from app.models import AuditLog, ReconciliationRun
+from app.api.reconciliation_history_schemas import (
+    AuditLogResponse,
+    ReconciliationAuditResponse,
+    ReconciliationRunDetailResponse,
+    ReconciliationRunHistoryItem,
+    ReconciliationRunHistoryResponse,
+)
+
+
+@router.get(
+    "/runs",
+    response_model=ReconciliationRunHistoryResponse,
+)
+def get_reconciliation_runs(
+    limit: int = 20,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    if limit < 1 or limit > 100:
+        raise HTTPException(
+            status_code=400,
+            detail="limit must be between 1 and 100.",
+        )
+
+    if offset < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="offset must be greater than or equal to 0.",
+        )
+
+    total = (
+        db.query(func.count(ReconciliationRun.id))
+        .scalar()
+        or 0
+    )
+
+    runs = (
+        db.query(ReconciliationRun)
+        .order_by(ReconciliationRun.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return ReconciliationRunHistoryResponse(
+        total=total,
+        limit=limit,
+        offset=offset,
+        runs=[
+            ReconciliationRunHistoryItem(
+                run_id=run.id,
+                source_file_name=run.source_file_name,
+                target_file_name=run.target_file_name,
+                status=run.status,
+                started_at=run.started_at.isoformat(),
+                completed_at=(
+                    run.completed_at.isoformat()
+                    if run.completed_at
+                    else None
+                ),
+                source_record_count=run.source_record_count,
+                target_record_count=run.target_record_count,
+                matched_record_count=run.matched_record_count,
+                discrepancy_record_count=(
+                    run.discrepancy_record_count
+                ),
+                missing_target_record_count=(
+                    run.missing_target_record_count
+                ),
+                review_required_record_count=(
+                    run.review_required_record_count
+                ),
+                total_discrepancy_count=(
+                    run.total_discrepancy_count
+                ),
+                reconciliation_percentage=(
+                    run.reconciliation_percentage
+                ),
+                exception_percentage=run.exception_percentage,
+            )
+            for run in runs
+        ],
+    )
+
+
+@router.get(
+    "/runs/{run_id}",
+    response_model=ReconciliationRunDetailResponse,
+)
+def get_reconciliation_run(
+    run_id: str,
+    db: Session = Depends(get_db),
+):
+    run = (
+        db.query(ReconciliationRun)
+        .filter(ReconciliationRun.id == run_id)
+        .first()
+    )
+
+    if run is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Reconciliation run '{run_id}' not found.",
+        )
+
+    return ReconciliationRunDetailResponse(
+        run_id=run.id,
+        source_file_name=run.source_file_name,
+        target_file_name=run.target_file_name,
+        status=run.status,
+        started_at=run.started_at.isoformat(),
+        completed_at=(
+            run.completed_at.isoformat()
+            if run.completed_at
+            else None
+        ),
+        source_record_count=run.source_record_count,
+        target_record_count=run.target_record_count,
+        matched_record_count=run.matched_record_count,
+        discrepancy_record_count=run.discrepancy_record_count,
+        missing_target_record_count=(
+            run.missing_target_record_count
+        ),
+        review_required_record_count=(
+            run.review_required_record_count
+        ),
+        total_discrepancy_count=run.total_discrepancy_count,
+        reconciliation_percentage=(
+            run.reconciliation_percentage
+        ),
+        exception_percentage=run.exception_percentage,
+        field_discrepancy_counts=(
+            run.field_discrepancy_counts or {}
+        ),
+    )
+
+
+@router.get(
+    "/runs/{run_id}/audit",
+    response_model=ReconciliationAuditResponse,
+)
+def get_reconciliation_audit(
+    run_id: str,
+    db: Session = Depends(get_db),
+):
+    run = (
+        db.query(ReconciliationRun)
+        .filter(ReconciliationRun.id == run_id)
+        .first()
+    )
+
+    if run is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Reconciliation run '{run_id}' not found.",
+        )
+
+    audit_logs = (
+        db.query(AuditLog)
+        .filter(AuditLog.entity_id == run_id)
+        .order_by(AuditLog.created_at.desc())
+        .all()
+    )
+
+    return ReconciliationAuditResponse(
+        run_id=run_id,
+        audit_logs=[
+            AuditLogResponse(
+                id=audit.id,
+                action=audit.action,
+                entity_type=audit.entity_type,
+                entity_id=audit.entity_id,
+                details=audit.details,
+                created_at=audit.created_at.isoformat(),
+            )
+            for audit in audit_logs
+        ],
+    )
+
 
