@@ -65,8 +65,9 @@ class Payment:
 @dataclass(frozen=True)
 class Refund:
     refund_id: str
-    payment_id: str
+    order_id: str
     customer_id: str
     refund_date: date
     refund_amount: Decimal
     refund_status: str
+
