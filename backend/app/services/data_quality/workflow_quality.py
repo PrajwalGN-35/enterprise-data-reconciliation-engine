@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import asdict
 from typing import Iterable
@@ -22,10 +22,15 @@ def _numeric_columns(dataframe: pd.DataFrame) -> list[str]:
     return columns
 
 
-def build_reconciliation_quality_engine(
+def build_standalone_quality_engine(
     dataframe: pd.DataFrame,
-    matching_fields: Iterable[str],
+    matching_fields: Iterable[str] = (),
 ) -> DataQualityEngine:
+    """Build the reusable quality engine for standalone API execution.
+
+    Unlike the reconciliation workflow builder, this API-facing builder
+    does not require reconciliation matching configuration.
+    """
     engine = DataQualityEngine()
 
     engine.register(
@@ -67,6 +72,16 @@ def build_reconciliation_quality_engine(
         engine.register(AnomalyRule(anomaly_configs))
 
     return engine
+
+
+def build_reconciliation_quality_engine(
+    dataframe: pd.DataFrame,
+    matching_fields: Iterable[str],
+) -> DataQualityEngine:
+    return build_standalone_quality_engine(
+        dataframe=dataframe,
+        matching_fields=matching_fields,
+    )
 
 
 def assess_reconciliation_dataset(
