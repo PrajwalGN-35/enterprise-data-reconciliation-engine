@@ -2,3 +2,4 @@
 from app.models.reconciliation import ReconciliationRun
 
 __all__ = ["AuditLog", "ReconciliationRun"]
+from app.models.quality_assessment import QualityAssessment

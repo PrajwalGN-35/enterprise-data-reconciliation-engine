@@ -17,11 +17,19 @@ from app.api.reconciliation_history_schemas import (
     ReconciliationRunHistoryResponse,
 )
 from app.api.reconciliation_schemas import ReconciliationRunResponse
+from app.api.quality_assessment_schemas import (
+    QualityAssessmentHistoryResponse,
+    QualityAssessmentResponse,
+)
 from app.core.database import SessionLocal, get_db
 from app.models import AuditLog, ReconciliationRun
 from app.services.ingestion.loader import (
     DatasetIngestionError,
     load_dataset,
+)
+from app.services.data_quality.reconciliation_quality import (
+    get_reconciliation_quality,
+    get_reconciliation_quality_history,
 )
 from app.services.reconciliation.orchestrator import (
     run_reconciliation_workflow,
@@ -457,4 +465,85 @@ def get_reconciliation_audit(
             )
             for audit in audit_logs
         ],
+    )
+
+@router.get(
+    "/runs/{run_id}/quality",
+    response_model=QualityAssessmentResponse,
+)
+def get_reconciliation_quality_assessment(
+    run_id: str,
+    db: Session = Depends(get_db),
+):
+    run = (
+        db.query(ReconciliationRun)
+        .filter(ReconciliationRun.id == run_id)
+        .first()
+    )
+
+    if run is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Reconciliation run '{run_id}' not found.",
+        )
+
+    assessment = get_reconciliation_quality(db, run_id)
+
+    if assessment is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No quality assessment found for reconciliation run '{run_id}'.",
+        )
+
+    return QualityAssessmentResponse(
+        id=assessment.id,
+        run_id=assessment.run_id,
+        dataset=assessment.dataset,
+        score=assessment.score,
+        risk=assessment.risk,
+        rule_count=assessment.rule_count,
+        failed_rule_count=assessment.failed_rule_count,
+        rule_scores=json.loads(assessment.rule_scores),
+        created_at=assessment.created_at,
+    )
+
+
+@router.get(
+    "/runs/{run_id}/quality/history",
+    response_model=QualityAssessmentHistoryResponse,
+)
+def get_reconciliation_quality_assessment_history(
+    run_id: str,
+    db: Session = Depends(get_db),
+):
+    run = (
+        db.query(ReconciliationRun)
+        .filter(ReconciliationRun.id == run_id)
+        .first()
+    )
+
+    if run is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Reconciliation run '{run_id}' not found.",
+        )
+
+    assessments = get_reconciliation_quality_history(db, run_id)
+
+    return QualityAssessmentHistoryResponse(
+        assessments=[
+            QualityAssessmentResponse(
+                id=assessment.id,
+                run_id=assessment.run_id,
+                dataset=assessment.dataset,
+                score=assessment.score,
+                risk=assessment.risk,
+                rule_count=assessment.rule_count,
+                failed_rule_count=assessment.failed_rule_count,
+                rule_scores=json.loads(assessment.rule_scores),
+                created_at=assessment.created_at,
+            )
+            for assessment in assessments
+        ],
+        count=len(assessments),
     )

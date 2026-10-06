@@ -1,3 +1,4 @@
+from sqlalchemy.orm import relationship
 import uuid
 
 from sqlalchemy import Column, DateTime, Float, Integer, String
@@ -99,4 +100,10 @@ class ReconciliationRun(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
+    )
+
+    quality_assessments = relationship(
+        "QualityAssessment",
+        back_populates="reconciliation_run",
+        cascade="all, delete-orphan",
     )
