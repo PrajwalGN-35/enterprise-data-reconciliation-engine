@@ -10,6 +10,12 @@ from .integrity import (
     ReferentialIntegrityRule,
     validate_cross_field,
 )
+from .anomaly import (
+    AnomalyConfig,
+    AnomalyRule,
+    detect_iqr_outliers,
+    detect_zscore_anomalies,
+)
 from .engine import (
     DataQualityEngine,
     DatasetQualityReport,
@@ -40,7 +46,11 @@ __all__ = [
     "CrossFieldRule",
     "ReferentialIntegrityConfig",
     "ReferentialIntegrityRule",
+    "AnomalyConfig",
+    "AnomalyRule",
     "calculate_completeness",
+    "detect_iqr_outliers",
+    "detect_zscore_anomalies",
     "find_duplicate_groups",
     "validate_column",
     "validate_cross_field",
