@@ -6,4 +6,5 @@ def init_db() -> None:
     from ..models.quality_assessment import QualityAssessment
 
 Base.metadata.create_all(bind=engine)
+from ..models.quality_run import QualityRun
 
