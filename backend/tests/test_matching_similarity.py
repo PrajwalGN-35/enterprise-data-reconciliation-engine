@@ -1,4 +1,4 @@
-﻿from app.services.matching.similarity import (
+from app.services.matching.similarity import (
     calculate_similarity,
     normalize_for_similarity,
 )

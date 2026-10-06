@@ -1,4 +1,4 @@
-﻿from app.services.matching.entity_matcher import (
+from app.services.matching.entity_matcher import (
     match_entities,
 )
 

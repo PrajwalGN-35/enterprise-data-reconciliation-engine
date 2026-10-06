@@ -1,4 +1,4 @@
-﻿from app.core.database import Base
+from app.core.database import Base
 from app.models import AuditLog, ReconciliationRun
 
 def test_persistence_models_registered():

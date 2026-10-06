@@ -1,1 +1,1 @@
-﻿"""Deterministic synthetic enterprise data generation package."""
+"""Deterministic synthetic enterprise data generation package."""

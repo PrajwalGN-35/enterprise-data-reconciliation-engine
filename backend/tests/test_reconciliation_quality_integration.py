@@ -1,4 +1,4 @@
-﻿from app.models.quality_assessment import QualityAssessment
+from app.models.quality_assessment import QualityAssessment
 from app.services.data_quality.reconciliation_quality import (
     get_reconciliation_quality,
     get_reconciliation_quality_history,

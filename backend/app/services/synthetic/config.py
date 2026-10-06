@@ -1,4 +1,4 @@
-﻿"""Configuration for deterministic NovaRetail synthetic data."""
+"""Configuration for deterministic NovaRetail synthetic data."""
 
 from dataclasses import dataclass
 

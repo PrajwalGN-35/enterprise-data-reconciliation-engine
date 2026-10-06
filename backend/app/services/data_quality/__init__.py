@@ -1,4 +1,4 @@
-﻿from .completeness import CompletenessConfig, CompletenessRule, calculate_completeness
+from .completeness import CompletenessConfig, CompletenessRule, calculate_completeness
 from .duplicates import DuplicateConfig, DuplicateRule, find_duplicate_groups
 from .validity import ValidityConfig, ValidityRule, validate_column
 from .integrity import (

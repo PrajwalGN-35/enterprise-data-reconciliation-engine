@@ -1,4 +1,4 @@
-﻿"""Configuration for NovaRetail source-system simulations."""
+"""Configuration for NovaRetail source-system simulations."""
 
 from dataclasses import dataclass
 

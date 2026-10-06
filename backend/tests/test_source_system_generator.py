@@ -1,4 +1,4 @@
-﻿"""Tests for NovaRetail multi-source dataset generation."""
+"""Tests for NovaRetail multi-source dataset generation."""
 
 from pathlib import Path
 

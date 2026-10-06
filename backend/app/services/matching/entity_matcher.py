@@ -1,4 +1,4 @@
-﻿from typing import Any
+from typing import Any
 
 from app.services.matching.models import EntityMatch
 from app.services.matching.similarity import calculate_similarity

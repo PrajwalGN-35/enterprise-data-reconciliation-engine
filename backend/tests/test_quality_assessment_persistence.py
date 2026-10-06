@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 
 from app.models.quality_assessment import QualityAssessment
 from app.services.data_quality.persistence import (

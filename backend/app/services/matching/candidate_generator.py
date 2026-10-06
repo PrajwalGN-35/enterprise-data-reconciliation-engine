@@ -1,4 +1,4 @@
-﻿from typing import Any
+from typing import Any
 
 from app.services.matching.models import MatchCandidate
 from app.services.matching.similarity import normalize_for_similarity

@@ -1,4 +1,4 @@
-﻿import io
+import io
 import json
 
 from fastapi.testclient import TestClient

@@ -1,4 +1,4 @@
-﻿from dataclasses import fields
+from dataclasses import fields
 
 from app.services.synthetic.source_config import SourceSystemConfig
 from app.services.synthetic.source_models import (

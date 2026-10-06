@@ -1,4 +1,4 @@
-﻿"""Domain models used by the synthetic enterprise data layer."""
+"""Domain models used by the synthetic enterprise data layer."""
 
 from dataclasses import dataclass
 from datetime import date

@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 
 from app.models.quality_assessment import QualityAssessment
 from app.models.reconciliation import ReconciliationRun

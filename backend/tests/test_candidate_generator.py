@@ -1,4 +1,4 @@
-﻿from app.services.matching.candidate_generator import (
+from app.services.matching.candidate_generator import (
     generate_candidates,
 )
 

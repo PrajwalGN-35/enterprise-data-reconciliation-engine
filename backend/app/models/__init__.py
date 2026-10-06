@@ -1,4 +1,4 @@
-﻿from .audit import AuditLog
+from .audit import AuditLog
 from .reconciliation import ReconciliationRun
 
 __all__ = ["AuditLog", "ReconciliationRun"]

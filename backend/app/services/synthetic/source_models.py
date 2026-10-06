@@ -1,4 +1,4 @@
-﻿"""Domain models for NovaRetail source-system representations."""
+"""Domain models for NovaRetail source-system representations."""
 
 from dataclasses import dataclass
 from datetime import date
