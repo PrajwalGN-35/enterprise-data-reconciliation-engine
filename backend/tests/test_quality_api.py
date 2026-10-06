@@ -145,12 +145,23 @@ def test_quality_run_rejects_empty_dataset_name(client):
     assert response.status_code == 422
 
 
-def test_quality_runs_boundary_is_explicit(client):
+def test_quality_runs_returns_persisted_history(client):
     response = client.get("/quality/runs")
 
     assert response.status_code == 200
-    assert response.json() == {"runs": []}
+    payload = response.json()
 
+    assert "runs" in payload
+    assert isinstance(payload["runs"], list)
+
+    for run in payload["runs"]:
+        assert set(run) == {
+            "run_id",
+            "dataset",
+            "score",
+            "risk",
+            "created_at",
+        }
 
 @pytest.mark.parametrize(
     "endpoint",
@@ -160,7 +171,8 @@ def test_quality_runs_boundary_is_explicit(client):
         "/quality/runs/test-run/score",
     ],
 )
-def test_quality_persistence_boundary_is_explicit(client, endpoint):
+def test_quality_run_not_found_returns_404(client, endpoint):
     response = client.get(endpoint)
 
-    assert response.status_code == 501
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Quality run not found."
