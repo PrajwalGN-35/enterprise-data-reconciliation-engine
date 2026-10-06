@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI
+from fastapi import FastAPI
 
 from app.api.health import router as health_router
 from app.api.datasets.upload import router as dataset_router
