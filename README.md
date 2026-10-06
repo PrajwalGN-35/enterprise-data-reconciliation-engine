@@ -1,412 +1,222 @@
 # Enterprise Automated Data Quality & Cross-System Reconciliation Engine
 
-An enterprise-style automated data quality and cross-system reconciliation platform designed to ingest heterogeneous datasets, validate data quality, normalize schemas and values, resolve matching entities, detect field-level discrepancies, calculate reconciliation metrics, and maintain persistent audit history.
+An enterprise-style **data trust and cross-system reconciliation platform** designed to identify, explain, and track data inconsistencies across CRM, ERP, payment, and other business systems.
 
-Built with **Python, FastAPI, Pandas, RapidFuzz, PostgreSQL, SQLAlchemy, and Pytest**, the system follows a modular backend architecture with automated testing and persistent reconciliation tracking.
+Built with **Python, FastAPI, Pandas, RapidFuzz, PostgreSQL, SQLAlchemy, and Pytest**, the platform combines automated data-quality validation, entity resolution, reconciliation, discrepancy detection, persistence, auditability, and synthetic enterprise data simulation.
 
 ---
 
 ## Overview
 
-Organizations often maintain the same business data across multiple systems such as ERP, CRM, databases, APIs, CSV files, and Excel workbooks. Differences between these systems can result in inconsistent records, duplicate entities, incorrect reporting, and data-quality issues.
+Modern organizations often maintain overlapping business data across multiple systems. Differences in schemas, values, identifiers, and relationships can lead to duplicate records, missing data, incorrect financial information, and unreliable reporting.
 
-This project automates the reconciliation process by comparing source and target datasets through a structured pipeline:
+This platform provides an automated pipeline for transforming raw enterprise data into validated and auditable reconciliation results.
 
 ```text
-Source Dataset + Target Dataset
-              ↓
-       Dataset Ingestion
-              ↓
-    Data Quality Validation
-              ↓
-      Schema Normalization
-              ↓
-   Semantic Column Matching
-              ↓
-      Value Normalization
-              ↓
-       Entity Resolution
-              ↓
-  Field-Level Reconciliation
-              ↓
-    Discrepancy Detection
-              ↓
-    Reconciliation Metrics
-              ↓
-   PostgreSQL Persistence
-              ↓
-      Audit & Run History
+Enterprise Data Sources
+          ↓
+Data Ingestion & Validation
+          ↓
+Schema & Value Normalization
+          ↓
+Entity Resolution
+          ↓
+Cross-System Reconciliation
+          ↓
+Discrepancy Detection
+          ↓
+Business Metrics
+          ↓
+Persistence & Audit
 ```
 
 ---
 
-# Key Features
+## Key Capabilities
 
-### Dataset Ingestion
-
-Supports structured dataset ingestion for:
-
-* CSV
-* XLSX
-* JSON
-
-The ingestion layer validates incoming datasets before they enter the reconciliation workflow.
-
-### Data Quality Validation
-
-Automated validation includes:
+### Data Quality
 
 * Missing-value detection
 * Duplicate detection
-* Column validation
-* Data-type inspection
-* Dataset structure validation
-* Input validation
-
-### Schema Normalization
-
-Handles structural differences between source and target datasets through:
-
-* Column-name normalization
-* Schema comparison
-* Semantic column matching
-* Data-type handling
-* Value normalization
-
-### Entity Resolution
-
-Uses **RapidFuzz** to identify corresponding records when the same entity is represented differently across systems.
-
-Example:
-
-```text
-Source:  "Raj Kumar"
-Target:  "Rajkumar"
-
-        ↓
-
-Fuzzy Entity Match
-```
-
-### Field-Level Reconciliation
-
-Matched records are compared at the field level to identify:
-
-* Matching values
-* Mismatched values
-* Missing values
-* Source-only records
-* Target-only records
-* Field-specific discrepancies
-
-### Reconciliation Metrics
-
-The engine calculates:
-
-* Total records
-* Matched records
-* Unmatched records
-* Reconciled records
-* Exception records
-* Reconciliation percentage
-* Exception percentage
-* Field-level discrepancy counts
-
----
-
-# Persistence & Audit System
-
-Phase 4 introduced persistent reconciliation tracking using **PostgreSQL and SQLAlchemy**.
-
-Each reconciliation execution follows a tracked lifecycle:
-
-```text
-RUNNING
-   │
-   ├── SUCCESS → COMPLETED
-   │
-   └── FAILURE → FAILED
-```
-
-The database stores:
-
-* Reconciliation run ID
-* Source dataset name
-* Target dataset name
-* Execution status
-* Start timestamp
-* Completion timestamp
-* Reconciliation metrics
-* Discrepancy statistics
-
-### Audit Logging
-
-The system creates audit records for reconciliation executions, including:
-
-* Action
-* Entity type
-* Entity ID
-* Execution status
-* Dataset information
-* Error information for failures
-* Timestamp
-
-Failed reconciliation executions are also persisted, ensuring that failures remain traceable instead of being silently discarded.
-
----
-
-# REST API
-
-The backend is implemented using **FastAPI**.
-
-### Reconciliation
-
-```http
-POST /reconciliation/run
-```
-
-Runs reconciliation between source and target datasets.
-
-### Reconciliation History
-
-```http
-GET /reconciliation/runs
-```
-
-Retrieves historical reconciliation runs with pagination.
-
-```http
-GET /reconciliation/runs/{run_id}
-```
-
-Retrieves detailed information about a specific reconciliation run.
-
-```http
-GET /reconciliation/runs/{run_id}/audit
-```
-
-Retrieves audit records associated with a reconciliation run.
-
-### Dataset Upload
-
-```http
-POST /datasets/upload
-```
-
-Uploads and validates supported datasets.
-
-### Health Check
-
-```http
-GET /health/
-```
-
-Checks backend availability.
-
----
-
-# Testing
-
-The project uses **Pytest** for automated testing across the reconciliation pipeline.
-
-Test coverage includes:
-
-* Dataset ingestion
-* Data-quality validation
-* Schema processing
-* Entity resolution
-* Reconciliation logic
-* API behavior
-* Database persistence
-* Audit logging
-* Reconciliation history
-* Pagination
-* Validation errors
-* Failure handling
-* Edge cases
-* Regression testing
-
-## Current Test Status
-
-```text
-115 passed
-2 warnings
-0 failed
-```
-
-The two warnings are dependency deprecation warnings from the FastAPI/Starlette testing stack and do not represent test failures.
-
----
-
-# Technology Stack
-
-### Backend
-
-* Python
-* FastAPI
-* SQLAlchemy
-* PostgreSQL
-
-### Data Processing
-
-* Pandas
-* RapidFuzz
-
-### Testing
-
-* Pytest
-* FastAPI TestClient
-
-### Development
-
-* Git
-* GitHub
-* Python Virtual Environment
-
----
-
-# Project Structure
-
-```text
-enterprise-reconciliation-engine/
-│
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   │   ├── datasets.py
-│   │   │   ├── reconciliation.py
-│   │   │   ├── reconciliation_history_schemas.py
-│   │   │   └── reconciliation_schemas.py
-│   │   │
-│   │   ├── core/
-│   │   │   ├── database.py
-│   │   │   ├── db_init.py
-│   │   │   └── config.py
-│   │   │
-│   │   ├── models/
-│   │   │   ├── reconciliation.py
-│   │   │   └── __init__.py
-│   │   │
-│   │   └── ...
-│   │
-│   ├── tests/
-│   │   ├── test_persistence_foundation.py
-│   │   ├── test_persistence_integration.py
-│   │   ├── test_reconciliation_history_api.py
-│   │   ├── test_reconciliation_history_edge_cases.py
-│   │   ├── test_reconciliation_persistence_hardening.py
-│   │   └── ...
-│   │
-│   └── requirements.txt
-│
-├── data/
-│   ├── sample/
-│   └── uploads/
-│
-└── README.md
-```
-
----
-
-# Development Phases Completed
-
-## Phase 1 — Backend Foundation
-
-* FastAPI application foundation
-* Backend project structure
-* Configuration
-* Initial API setup
-
-**Status: Completed**
-
-## Phase 2 — Data Ingestion & Quality
-
-* Dataset upload
-* CSV/XLSX processing
-* Dataset profiling
-* Data-quality checks
-* Input validation
-* Automated testing
-
-**Status: Completed**
-
-## Phase 3 — Core Reconciliation Engine
+* Schema and column validation
+* Data-type validation
+* Referential-integrity checks
+* Numeric and financial sanity checks
+
+### Cross-System Reconciliation
 
 * Schema normalization
 * Semantic column matching
 * Value normalization
-* Fuzzy entity resolution
-* Field-level discrepancy detection
+* Fuzzy entity resolution using **RapidFuzz**
+* Field-level comparison
+* Source-only and target-only record detection
 * Reconciliation metrics
-* End-to-end workflow
-* Reconciliation API
-* Automated testing
 
-**Status: Completed**
+### Enterprise Data Simulation
 
-## Phase 4 — Persistence, Audit & Run History
-
-* PostgreSQL persistence
-* SQLAlchemy data models
-* Reconciliation run lifecycle
-* Persistent run history
-* Audit logging
-* Failed-run persistence
-* Failure handling
-* Reconciliation history APIs
-* Pagination
-* Validation and edge-case testing
-
-**Status: Completed**
-
-### Phase 4 Release
+The platform includes a deterministic synthetic enterprise environment, **NovaRetail Enterprise**, representing:
 
 ```text
-Release: phase-4-complete
-Branch: main
-Automated Tests: 115 passed
+Regions
+Customers
+Products
+Orders
+Invoices
+Payments
+Refunds
+```
+
+These datasets are transformed into simulated:
+
+```text
+CRM
+ERP
+Payment System
+```
+
+Controlled discrepancies can be injected into separate scenarios, including duplicate records, invalid references, incorrect invoice amounts, negative payments, and missing statuses.
+
+### Scenario & Dataset Management
+
+The platform provides:
+
+* Clean and discrepant scenarios
+* Machine-readable scenario manifests
+* Scenario catalog
+* Structured dataset registry
+* Automated dataset profiling
+* Row, column, null-rate, data-type, and uniqueness analysis
+
+---
+
+## Persistence & Audit
+
+Reconciliation executions are persisted using **PostgreSQL and SQLAlchemy**.
+
+The system tracks:
+
+* Reconciliation runs
+* Execution status
+* Metrics
+* Discrepancies
+* Timestamps
+* Audit records
+* Failed executions
+
+This provides traceability across the reconciliation lifecycle.
+
+---
+
+## REST API
+
+Built with **FastAPI**.
+
+```http
+GET  /health/
+POST /datasets/upload
+POST /reconciliation/run
+GET  /reconciliation/runs
+GET  /reconciliation/runs/{run_id}
+GET  /reconciliation/runs/{run_id}/audit
 ```
 
 ---
 
-# Engineering Workflow
+## Technology Stack
 
-Development follows a structured engineering process:
-
-```text
-Plan
-  ↓
-Implement
-  ↓
-Test
-  ↓
-Fix
-  ↓
-Commit
-  ↓
-Document
-```
-
-Each development phase is maintained through structured Git commits and release checkpoints.
+| Area              | Technologies           |
+| ----------------- | ---------------------- |
+| Backend           | Python, FastAPI        |
+| Data Processing   | Pandas, NumPy          |
+| Entity Resolution | RapidFuzz              |
+| Database          | PostgreSQL, SQLAlchemy |
+| Testing           | Pytest                 |
+| Development       | Git, GitHub            |
 
 ---
 
-# Project Status
+## Testing
+
+The project maintains an automated regression suite covering ingestion, validation, reconciliation, entity resolution, APIs, persistence, audit logging, synthetic data generation, scenario management, dataset registration, and profiling.
 
 ```text
-Phase 1 — Backend Foundation              ✓
-Phase 2 — Data Ingestion & Quality        ✓
-Phase 3 — Core Reconciliation Engine      ✓
-Phase 4 — Persistence & Audit             ✓
+160 passed
+0 failed
+1 warning
+```
 
-Automated Tests                            115 PASS
-Current Release                            phase-4-complete
-Primary Branch                             main
+The remaining warning is a dependency deprecation warning from the FastAPI/Starlette testing stack and does not represent a test failure.
+
+---
+
+## Architecture
+
+```text
+                    Enterprise Data
+                          │
+        ┌─────────────────┼─────────────────┐
+        ▼                 ▼                 ▼
+       CRM               ERP          Payment System
+        │                 │                 │
+        └─────────────────┼─────────────────┘
+                          ▼
+                 Data Quality Engine
+                          │
+                          ▼
+                Entity Resolution
+                          │
+                          ▼
+                 Reconciliation
+                          │
+             ┌────────────┴────────────┐
+             ▼                         ▼
+       Business Metrics          Audit & History
+             │                         │
+             └────────────┬────────────┘
+                          ▼
+                  Enterprise Data
+                    Trust Platform
 ```
 
 ---
 
-# Author
+## Current Status
+
+```text
+✓ Backend Foundation
+✓ Data Ingestion & Quality
+✓ Core Reconciliation
+✓ Persistence & Audit
+✓ Enterprise Synthetic Data
+✓ Multi-Source Simulation
+✓ Scenario Management
+✓ Dataset Registry & Profiling
+
+→ Next: Advanced Data Quality Engine
+```
+
+**Current Release:** `phase-5.7-complete`
+**Latest Commit:** `3e584c2`
+**Branch:** `main`
+
+---
+
+## Roadmap
+
+The platform is evolving toward an **AI-assisted Enterprise Data Trust Platform** with planned capabilities including:
+
+* Advanced anomaly detection
+* Explainable entity resolution
+* Business-impact analysis
+* Human-in-the-loop remediation
+* AI-assisted investigation
+* Enterprise monitoring dashboard
+* Production-grade deployment
+
+---
+
+## Author
 
 **Prajwal G N**
 
