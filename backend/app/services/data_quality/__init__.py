@@ -16,6 +16,14 @@ from .anomaly import (
     detect_iqr_outliers,
     detect_zscore_anomalies,
 )
+from .scoring import (
+    QualityRisk,
+    QualityScore,
+    QualityRuleScore,
+    QualityScoringConfig,
+    calculate_quality_score,
+    score_quality_report,
+)
 from .engine import (
     DataQualityEngine,
     DatasetQualityReport,
@@ -48,10 +56,16 @@ __all__ = [
     "ReferentialIntegrityRule",
     "AnomalyConfig",
     "AnomalyRule",
+    "QualityRisk",
+    "QualityScore",
+    "QualityRuleScore",
+    "QualityScoringConfig",
+    "calculate_quality_score",
     "calculate_completeness",
     "detect_iqr_outliers",
     "detect_zscore_anomalies",
     "find_duplicate_groups",
+    "score_quality_report",
     "validate_column",
     "validate_cross_field",
 ]
