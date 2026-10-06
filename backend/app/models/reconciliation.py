@@ -5,7 +5,7 @@ from sqlalchemy import Column, DateTime, Float, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 
-from app.core.database import Base
+from ..core.database import Base
 
 
 class ReconciliationRun(Base):

@@ -3,7 +3,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models.quality_assessment import QualityAssessment
+from ...models.quality_assessment import QualityAssessment
 
 
 def persist_quality_assessment(

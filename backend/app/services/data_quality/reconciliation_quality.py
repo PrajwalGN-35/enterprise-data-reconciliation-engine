@@ -2,7 +2,7 @@
 
 from sqlalchemy.orm import Session
 
-from app.services.data_quality.persistence import (
+from .persistence import (
     get_quality_assessment,
     get_quality_assessments,
     persist_quality_assessment,

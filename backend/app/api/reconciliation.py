@@ -31,6 +31,9 @@ from app.services.data_quality.reconciliation_quality import (
     get_reconciliation_quality,
     get_reconciliation_quality_history,
 )
+from app.services.data_quality.workflow_quality import (
+    assess_reconciliation_dataset,
+)
 from app.services.reconciliation.orchestrator import (
     run_reconciliation_workflow,
 )
@@ -205,6 +208,38 @@ async def run_reconciliation(
                 target_dataframe=target_dataframe,
                 matching_fields=parsed_matching_fields,
                 reconciliation_fields=parsed_reconciliation_fields,
+            )
+
+            source_assessment, source_quality = assess_reconciliation_dataset(
+                db=db,
+                run_id=run.id,
+                dataframe=source_dataframe,
+                dataset=source_file.filename or "source",
+                matching_fields=parsed_matching_fields,
+            )
+
+            target_assessment, target_quality = assess_reconciliation_dataset(
+                db=db,
+                run_id=run.id,
+                dataframe=target_dataframe,
+                dataset=target_file.filename or "target",
+                matching_fields=parsed_matching_fields,
+            )
+
+            db.add(
+                AuditLog(
+                    action="quality_assessment_recorded",
+                    entity_type="reconciliation_run",
+                    entity_id=run.id,
+                    details=json.dumps(
+                        {
+                            "source": source_quality,
+                            "target": target_quality,
+                            "source_assessment_id": source_assessment.id,
+                            "target_assessment_id": target_assessment.id,
+                        }
+                    ),
+                )
             )
 
             completed_at = datetime.now(timezone.utc)

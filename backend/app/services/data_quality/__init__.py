@@ -71,3 +71,7 @@ __all__ = [
 ]
 from .persistence import get_quality_assessment, get_quality_assessments, persist_quality_assessment
 from .reconciliation_quality import get_reconciliation_quality, get_reconciliation_quality_history, record_reconciliation_quality
+from .workflow_quality import (
+    assess_reconciliation_dataset,
+    build_reconciliation_quality_engine,
+)
