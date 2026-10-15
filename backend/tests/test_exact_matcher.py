@@ -1,3 +1,5 @@
+import numpy as np
+import pandas as pd
 import pytest
 
 from app.services.matching.exact_matcher import match_entities_exact
@@ -46,10 +48,24 @@ def test_requires_every_composite_key_field_to_match():
     assert result[0].target_index is None
 
 
-@pytest.mark.parametrize("missing", [None, "", " ", "NA", "N/A", "null", "None"])
-def test_missing_composite_key_value_never_matches(missing):
-    source = [{"customer_id": "CUST-001", "email": missing}]
-    target = [{"customer_id": "CUST-001", "email": missing}]
+@pytest.mark.parametrize(
+    ("source_missing", "target_missing"),
+    [
+        (None, pd.NA),
+        (pd.NA, pd.NA),
+        (pd.NaT, np.datetime64("NaT", "ns")),
+        (float("nan"), None),
+        ("", " "),
+        ("NA", "N/A"),
+        ("null", "None"),
+    ],
+)
+def test_missing_composite_key_value_never_matches(
+    source_missing,
+    target_missing,
+):
+    source = [{"customer_id": "CUST-001", "email": source_missing}]
+    target = [{"customer_id": "CUST-001", "email": target_missing}]
 
     result = match_entities_exact(
         source, target, ["customer_id", "email"]

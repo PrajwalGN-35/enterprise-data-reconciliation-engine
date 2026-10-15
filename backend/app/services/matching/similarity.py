@@ -1,16 +1,35 @@
+import math
+import unicodedata
 from typing import Any
 
+import numpy as np
+import pandas as pd
 from rapidfuzz import fuzz
+
+
+_MISSING_TEXT_VALUES = {
+    "",
+    "na",
+    "n/a",
+    "nan",
+    "null",
+    "none",
+    "nil",
+}
 
 
 def normalize_for_similarity(value: Any) -> str:
     """Convert a value into a stable fuzzy-matching representation."""
-    if value is None:
+    missing = pd.isna(value)
+
+    if isinstance(missing, (bool, np.bool_)) and bool(missing):
         return ""
 
-    text = str(value).strip().lower()
+    text = unicodedata.normalize("NFKC", str(value))
+    text = " ".join(text.split()).casefold()
+    text = unicodedata.normalize("NFC", text)
 
-    if text in {"", "na", "n/a", "nan", "null", "none", "nil"}:
+    if text in _MISSING_TEXT_VALUES:
         return ""
 
     return text
@@ -30,7 +49,9 @@ def calculate_similarity(
     if source == target:
         return 1.0
 
-    return round(
-        fuzz.WRatio(source, target) / 100,
-        4,
-    )
+    score = fuzz.WRatio(source, target) / 100
+
+    if not math.isfinite(score):
+        return 0.0
+
+    return round(min(max(score, 0.0), 1.0), 4)

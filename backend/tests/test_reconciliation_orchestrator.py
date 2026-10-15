@@ -131,6 +131,22 @@ def test_workflow_detects_missing_target():
     assert result.summary.reconciliation_percentage == 50.0
 
 
+def test_workflow_does_not_match_missing_identifiers():
+    source = pd.DataFrame([{"customer_id": pd.NA, "email": "a@example.com"}])
+    target = pd.DataFrame([{"customer_id": pd.NaT, "email": "a@example.com"}])
+
+    result = run_reconciliation_workflow(
+        source_dataframe=source,
+        target_dataframe=target,
+        matching_fields=["customer_id"],
+        reconciliation_fields=["email"],
+    )
+
+    assert result.matches[0].status == "no_match"
+    assert result.matches[0].target_index is None
+    assert result.summary.missing_target_record_count == 1
+
+
 def test_workflow_requires_matching_fields():
     source = pd.DataFrame([{"customer_id": "C001"}])
     target = pd.DataFrame([{"customer_id": "C001"}])

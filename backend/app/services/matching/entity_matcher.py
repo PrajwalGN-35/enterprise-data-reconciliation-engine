@@ -1,7 +1,11 @@
+import math
 from typing import Any
 
 from app.services.matching.models import EntityMatch
-from app.services.matching.similarity import calculate_similarity
+from app.services.matching.similarity import (
+    calculate_similarity,
+    normalize_for_similarity,
+)
 
 
 DEFAULT_HIGH_CONFIDENCE_THRESHOLD = 0.90
@@ -14,31 +18,38 @@ def _score_record(
     target_record: dict[str, Any],
     fields: list[str],
 ) -> dict[str, float]:
-    return {
-        field: calculate_similarity(
-            source_record.get(field),
-            target_record.get(field),
+    scores: dict[str, float] = {}
+
+    for field in fields:
+        source_value = source_record.get(field)
+        target_value = target_record.get(field)
+
+        source_text = normalize_for_similarity(source_value)
+        target_text = normalize_for_similarity(target_value)
+
+        if not source_text or not target_text:
+            continue
+
+        scores[field] = calculate_similarity(
+            source_value,
+            target_value,
         )
-        for field in fields
-    }
+
+    return scores
 
 
 def _combined_score(
     field_scores: dict[str, float],
 ) -> float:
-    valid_scores = [
-        score
-        for score in field_scores.values()
-        if score > 0
-    ]
-
-    if not valid_scores:
+    if not field_scores:
         return 0.0
 
-    return round(
-        sum(valid_scores) / len(valid_scores),
-        4,
-    )
+    score = sum(field_scores.values()) / len(field_scores)
+
+    if not isinstance(score, (int, float)) or not math.isfinite(score):
+        return 0.0
+
+    return round(min(max(score, 0.0), 1.0), 4)
 
 
 def match_entities(

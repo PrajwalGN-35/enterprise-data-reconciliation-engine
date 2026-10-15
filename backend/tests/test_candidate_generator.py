@@ -1,3 +1,7 @@
+import numpy as np
+import pandas as pd
+import pytest
+
 from app.services.matching.candidate_generator import (
     generate_candidates,
 )
@@ -43,6 +47,28 @@ def test_candidate_generation_excludes_missing_values():
     )
 
     assert len(candidates) == 1
+
+
+@pytest.mark.parametrize(
+    ("source_missing", "target_missing"),
+    [
+        (None, pd.NA),
+        (pd.NA, pd.NA),
+        (pd.NaT, np.datetime64("NaT", "ns")),
+        (float("nan"), None),
+    ],
+)
+def test_candidate_generation_excludes_all_missing_representations(
+    source_missing,
+    target_missing,
+):
+    candidates = generate_candidates(
+        [{"customer_id": source_missing}],
+        [{"customer_id": target_missing}],
+        "customer_id",
+    )
+
+    assert candidates == []
 
 
 def test_duplicate_target_values_produce_multiple_candidates():

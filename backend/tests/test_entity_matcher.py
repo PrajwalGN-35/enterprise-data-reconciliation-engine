@@ -1,3 +1,8 @@
+import math
+
+import numpy as np
+import pandas as pd
+
 from app.services.matching.entity_matcher import (
     match_entities,
 )
@@ -28,6 +33,133 @@ def test_high_confidence_match():
     assert results[0].status == "matched"
     assert results[0].target_index == 0
     assert results[0].confidence >= 0.90
+
+
+def test_exact_match_across_multiple_fields_has_full_confidence():
+    result = match_entities(
+        [{"name": "Rahul Kumar", "email": "rahul@example.com"}],
+        [{"name": "RAHUL KUMAR", "email": "RAHUL@EXAMPLE.COM"}],
+        fields=["name", "email"],
+    )[0]
+
+    assert result.status == "matched"
+    assert result.confidence == 1.0
+    assert result.field_scores == {"name": 1.0, "email": 1.0}
+
+
+def test_conflicting_comparable_field_reduces_confidence():
+    result = match_entities(
+        [{"name": "Rahul Kumar", "email": "rahul@example.com"}],
+        [{"name": "Anitha Rao", "email": "rahul@example.com"}],
+        fields=["name", "email"],
+    )[0]
+
+    assert result.status == "no_match"
+    assert result.target_index is None
+    assert result.confidence < 0.75
+
+
+def test_zero_similarity_conflict_is_not_discarded():
+    result = match_entities(
+        [{"name": "Rahul Kumar", "email": "rahul@example.com"}],
+        [{"name": "zzzzzzzzzzzz", "email": "rahul@example.com"}],
+        fields=["name", "email"],
+    )[0]
+
+    assert result.status == "no_match"
+    assert result.target_index is None
+    assert result.confidence == 0.5
+
+
+def test_multiple_conflicting_fields_do_not_match_on_one_field():
+    result = match_entities(
+        [{
+            "name": "Rahul Kumar",
+            "email": "rahul@example.com",
+            "customer_id": "C001",
+        }],
+        [{
+            "name": "Anitha Rao",
+            "email": "anitha@example.com",
+            "customer_id": "C001",
+        }],
+        fields=["name", "email", "customer_id"],
+    )[0]
+
+    assert result.status == "no_match"
+    assert result.confidence < 0.75
+
+
+def test_missing_source_value_is_excluded_from_comparable_score():
+    result = match_entities(
+        [{"name": "Rahul Kumar", "email": None}],
+        [{"name": "Rahul Kumar", "email": "other@example.com"}],
+        fields=["name", "email"],
+    )[0]
+
+    assert result.status == "matched"
+    assert result.confidence == 1.0
+    assert result.field_scores == {"name": 1.0}
+
+
+def test_missing_target_value_is_excluded_from_comparable_score():
+    result = match_entities(
+        [{"name": "Rahul Kumar", "email": "rahul@example.com"}],
+        [{"name": "Rahul Kumar", "email": None}],
+        fields=["name", "email"],
+    )[0]
+
+    assert result.status == "matched"
+    assert result.confidence == 1.0
+    assert result.field_scores == {"name": 1.0}
+
+
+def test_both_missing_values_are_not_comparable():
+    result = match_entities(
+        [{"name": None, "email": "rahul@example.com"}],
+        [{"name": None, "email": None}],
+        fields=["name", "email"],
+    )[0]
+
+    assert result.status == "no_match"
+    assert result.confidence == 0.0
+    assert result.target_index is None
+
+
+def test_records_with_no_comparable_fields_do_not_match():
+    result = match_entities(
+        [{"name": None, "email": "N/A"}],
+        [{"name": "", "email": float("nan")}],
+        fields=["name", "email"],
+    )[0]
+
+    assert result.status == "no_match"
+    assert result.confidence == 0.0
+
+
+def test_partial_match_is_reviewed_at_configured_threshold():
+    result = match_entities(
+        [{"name": "Rahul Kumar"}],
+        [{"name": "Rahul K"}],
+        fields=["name"],
+        high_confidence_threshold=0.95,
+        review_threshold=0.90,
+    )[0]
+
+    assert result.status == "review_required"
+    assert result.target_index == 0
+    assert result.confidence == 0.9
+
+
+def test_confidence_is_finite_and_bounded():
+    results = match_entities(
+        [{"name": "Rahul Kumar", "email": "rahul@example.com"}],
+        [{"name": "Anitha Rao", "email": "other@example.com"}],
+        fields=["name", "email"],
+    )
+
+    assert math.isfinite(results[0].confidence)
+    assert 0.0 <= results[0].confidence <= 1.0
 
 
 def test_moderate_match_requires_review():
@@ -143,6 +275,29 @@ def test_missing_values_do_not_create_matches():
 
     assert results[0].status == "no_match"
     assert results[0].target_index is None
+
+
+def test_mixed_missing_identifier_representations_do_not_match():
+    results = match_entities(
+        [{"name": pd.NA}],
+        [{"name": np.datetime64("NaT", "ns")}],
+        fields=["name"],
+    )
+
+    assert results[0].status == "no_match"
+    assert results[0].target_index is None
+
+
+def test_populated_value_remains_comparable_next_to_missing_value():
+    result = match_entities(
+        [{"name": "Rahul Kumar", "email": pd.NA}],
+        [{"name": "Rahul Kumar", "email": "other@example.com"}],
+        fields=["name", "email"],
+    )[0]
+
+    assert result.status == "matched"
+    assert result.confidence == 1.0
+    assert result.field_scores == {"name": 1.0}
 
 
 def test_invalid_thresholds_are_rejected():
