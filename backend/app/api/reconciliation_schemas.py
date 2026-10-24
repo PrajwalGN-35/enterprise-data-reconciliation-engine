@@ -12,6 +12,7 @@ class ReconciliationRunResponse(BaseModel):
     matches: list[dict[str, Any]]
     reconciliation_results: list[dict[str, Any]]
     summary: dict[str, Any]
+    impact_analysis: dict[str, Any]
 
 
 class ReconciliationRunRequest(BaseModel):

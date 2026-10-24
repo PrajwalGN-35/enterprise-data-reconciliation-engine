@@ -365,8 +365,9 @@ The full backend test suite passed. The test command used --disable-warnings, so
 ✓ Standalone Data Quality API
 ✓ Enterprise Regression Hardening
 ✓ Phase 7.4 Explainable Matching & Integration
+✓ Phase 7.5 Discrepancy Impact Analysis & Prioritization
 
-→ Next: inspect the remaining roadmap and repository architecture before defining the next phase
+→ Next: human-in-the-loop remediation and data-quality monitoring
 ```
 
 ---

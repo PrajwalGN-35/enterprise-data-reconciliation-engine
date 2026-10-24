@@ -57,6 +57,8 @@ def test_reconciliation_api_runs_successfully():
     assert body["summary"]["target_record_count"] == 2
     assert body["summary"]["matched_record_count"] == 2
     assert body["summary"]["reconciliation_percentage"] == 100.0
+    assert body["impact_analysis"]["affected_record_count"] == 0
+    assert body["impact_analysis"]["exceptions"] == []
 
     # Phase 7.4: explanations must be preserved in the API JSON response.
     assert len(body["matches"]) == 2
@@ -96,6 +98,10 @@ def test_reconciliation_api_reports_discrepancy():
     assert body["summary"]["discrepancy_record_count"] == 1
     assert body["summary"]["total_discrepancy_count"] == 1
     assert body["summary"]["field_discrepancy_counts"] == {"email": 1}
+    assert body["impact_analysis"]["affected_record_count"] == 1
+    assert body["impact_analysis"]["exceptions"][0]["discrepant_fields"] == [
+        "email"
+    ]
 
 
 def test_reconciliation_api_rejects_invalid_matching_fields():

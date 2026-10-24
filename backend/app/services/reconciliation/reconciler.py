@@ -24,6 +24,7 @@ class ReconciliationResult:
     compared_field_count: int = 0
     discrepancy_count: int = 0
     reason: str | None = None
+    compared_fields: tuple[str, ...] = ()
 
 
 def compare_field_values(
@@ -148,6 +149,7 @@ def reconcile_matches(
                 target_index=match.target_index,
                 status=status,
                 discrepancies=discrepancies,
+                compared_fields=tuple(fields),
                 compared_field_count=len(fields),
                 discrepancy_count=len(discrepancies),
             )

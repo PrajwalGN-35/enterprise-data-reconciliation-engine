@@ -8,6 +8,10 @@ from app.services.reconciliation.reconciler import (
     ReconciliationResult,
     reconcile_matches,
 )
+from app.services.reconciliation.impact import (
+    DiscrepancyImpactAnalysis,
+    analyze_reconciliation_impact,
+)
 from app.services.reconciliation.summary import (
     ReconciliationSummary,
     summarize_reconciliation,
@@ -27,6 +31,7 @@ class ReconciliationWorkflowResult:
     matches: list[Any]
     reconciliation_results: list[ReconciliationResult]
     summary: ReconciliationSummary
+    impact_analysis: DiscrepancyImpactAnalysis
 
 
 def _records_from_dataframe(dataframe: pd.DataFrame) -> list[dict[str, Any]]:
@@ -156,10 +161,16 @@ def run_reconciliation_workflow(
         target_record_count=len(target_records),
     )
 
+    impact_analysis = analyze_reconciliation_impact(
+        results=reconciliation_results,
+        source_record_count=len(source_records),
+    )
+
     return ReconciliationWorkflowResult(
         schema_comparison=schema_comparison,
         matches=matches,
         reconciliation_results=reconciliation_results,
         summary=summary,
+        impact_analysis=impact_analysis,
     )
 
