@@ -58,6 +58,16 @@ def test_reconciliation_api_runs_successfully():
     assert body["summary"]["matched_record_count"] == 2
     assert body["summary"]["reconciliation_percentage"] == 100.0
 
+    # Phase 7.4: explanations must be preserved in the API JSON response.
+    assert len(body["matches"]) == 2
+    for match in body["matches"]:
+        explanation = match["explanation"]
+        assert explanation is not None
+        assert explanation["field_evidence"]
+        assert explanation["decision"] is not None
+        assert explanation["decision"]["rule"]
+        assert "summary" in explanation["decision"]
+
 
 def test_reconciliation_api_reports_discrepancy():
     source = (

@@ -55,7 +55,15 @@ def test_requires_every_composite_key_field_to_match():
     assert result[0].status == "no_match"
     assert result[0].reason == "no_exact_match"
     assert result[0].target_index is None
-    assert result[0].explanation.field_evidence == ()
+    evidence = result[0].explanation.field_evidence
+    assert [item.field for item in evidence] == [
+        "customer_id",
+        "email",
+    ]
+    assert [item.outcome for item in evidence] == [
+        "exact",
+        "conflict",
+    ]
     assert result[0].explanation.decision.rule == "no_exact_match"
 
 
@@ -175,6 +183,26 @@ def test_empty_target_returns_no_matches():
     assert result[0].explanation.decision.rule == "no_exact_match"
 
 
+def test_empty_target_dataset_has_accurate_no_match_explanation():
+    result = match_entities_exact(
+        [{"id": "A-1", "email": "a@example.com"}],
+        [],
+        ["id", "email"],
+    )
+
+    assert len(result) == 1
+    assert result[0].status == "no_match"
+    assert result[0].reason == "no_exact_match"
+    assert result[0].target_index is None
+    assert [item.field for item in result[0].explanation.field_evidence] == [
+        "id",
+        "email",
+    ]
+    assert result[0].explanation.decision.rule == "no_exact_match"
+    assert result[0].explanation.decision.summary == (
+        "No target records are available for comparison."
+    )
+
 @pytest.mark.parametrize("fields", [[], [" "], ["id", ""]])
 def test_rejects_invalid_matching_fields(fields):
     with pytest.raises(ValueError):
@@ -238,3 +266,84 @@ def test_entity_match_without_explanation_remains_compatible():
     )
 
     assert result.explanation is None
+
+
+def test_no_match_explains_all_composite_key_fields():
+    source = [{"id": "A-1", "email": "a@example.com", "region": "north"}]
+    target = [{"id": "A-1", "email": "b@example.com", "region": "south"}]
+
+    result = match_entities_exact(
+        source, target, ["id", "email", "region"]
+    )[0]
+
+    evidence = result.explanation.field_evidence
+
+    assert [item.field for item in evidence] == [
+        "id",
+        "email",
+        "region",
+    ]
+    assert [item.outcome for item in evidence] == [
+        "exact",
+        "conflict",
+        "conflict",
+    ]
+    assert result.status == "no_match"
+    assert result.explanation.decision.rule == "no_exact_match"
+
+
+def test_missing_key_explains_fields_after_the_missing_value():
+    source = [{"id": "A-1", "email": None, "region": "north"}]
+    target = [{"id": "A-1", "email": "a@example.com", "region": "north"}]
+
+    result = match_entities_exact(
+        source, target, ["id", "email", "region"]
+    )[0]
+
+    evidence = result.explanation.field_evidence
+
+    assert [item.field for item in evidence] == [
+        "id",
+        "email",
+        "region",
+    ]
+    assert [item.outcome for item in evidence] == [
+        "exact",
+        "missing",
+        "exact",
+    ]
+    assert evidence[1].comparable is False
+    assert evidence[1].score is None
+    assert evidence[1].contribution is None
+    assert result.explanation.decision.rule == "missing_matching_value"
+
+
+def test_duplicate_source_key_retains_composite_key_evidence():
+    source = [
+        {"id": "A-1", "email": "a@example.com"},
+        {"id": "a-1", "email": "A@example.com"},
+    ]
+    target = [{"id": "A-1", "email": "a@example.com"}]
+
+    results = match_entities_exact(source, target, ["id", "email"])
+
+    for result in results:
+        evidence = result.explanation.field_evidence
+        assert [item.field for item in evidence] == ["id", "email"]
+        assert [item.outcome for item in evidence] == ["exact", "exact"]
+        assert result.explanation.decision.rule == "duplicate_source_key"
+
+
+def test_duplicate_target_key_retains_source_key_evidence():
+    source = [{"id": "A-1", "email": "a@example.com"}]
+    target = [
+        {"id": "A-1", "email": "a@example.com"},
+        {"id": "a-1", "email": "A@example.com"},
+    ]
+
+    result = match_entities_exact(source, target, ["id", "email"])[0]
+
+    evidence = result.explanation.field_evidence
+    assert [item.field for item in evidence] == ["id", "email"]
+    assert [item.outcome for item in evidence] == ["exact", "exact"]
+    assert result.explanation.decision.rule == "duplicate_target_key"

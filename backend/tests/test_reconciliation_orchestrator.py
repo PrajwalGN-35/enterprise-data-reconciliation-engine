@@ -59,6 +59,14 @@ def test_workflow_reconciles_matching_records():
     assert result.summary.reconciliation_percentage == 100.0
     assert result.schema_comparison["summary"]["matched_column_count"] == 4
 
+    # Phase 7.4: explanations must survive the complete reconciliation workflow.
+    assert len(result.matches) == 2
+    for match in result.matches:
+        assert match.explanation is not None
+        assert match.explanation.field_evidence
+        assert match.explanation.decision is not None
+        assert match.explanation.decision.rule
+
 
 def test_workflow_detects_field_discrepancy():
     source = pd.DataFrame(

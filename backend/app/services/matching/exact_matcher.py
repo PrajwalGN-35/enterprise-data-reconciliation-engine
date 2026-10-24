@@ -25,11 +25,13 @@ def _composite_key_result(
 ) -> _CompositeKeyResult:
     values: list[str] = []
     evidence: list[MatchFieldEvidence] = []
+    has_missing_value = False
 
     for field in fields:
         normalized = normalize_for_similarity(record.get(field))
 
         if not normalized:
+            has_missing_value = True
             evidence.append(
                 MatchFieldEvidence(
                     field=field,
@@ -38,7 +40,7 @@ def _composite_key_result(
                     explanation_code="missing_value",
                 )
             )
-            return _CompositeKeyResult(None, tuple(evidence))
+            continue
 
         values.append(normalized)
         evidence.append(
@@ -50,7 +52,81 @@ def _composite_key_result(
             )
         )
 
-    return _CompositeKeyResult(tuple(values), tuple(evidence))
+    key = None if has_missing_value else tuple(values)
+    return _CompositeKeyResult(key, tuple(evidence))
+
+
+def _comparison_evidence(
+    source_record: dict[str, Any],
+    target_record: dict[str, Any],
+    fields: list[str],
+) -> tuple[MatchFieldEvidence, ...]:
+    """Explain normalized, field-by-field differences between two records."""
+    evidence: list[MatchFieldEvidence] = []
+
+    for field in fields:
+        source_value = normalize_for_similarity(source_record.get(field))
+        target_value = normalize_for_similarity(target_record.get(field))
+
+        if not source_value or not target_value:
+            evidence.append(
+                MatchFieldEvidence(
+                    field=field,
+                    outcome="missing",
+                    comparable=False,
+                    explanation_code="missing_value",
+                )
+            )
+        elif source_value == target_value:
+            evidence.append(
+                MatchFieldEvidence(
+                    field=field,
+                    outcome="exact",
+                    score=1.0,
+                    explanation_code="normalized_exact_match",
+                )
+            )
+        else:
+            evidence.append(
+                MatchFieldEvidence(
+                    field=field,
+                    outcome="conflict",
+                    score=0.0,
+                    explanation_code="normalized_value_conflict",
+                )
+            )
+
+    return tuple(evidence)
+
+
+def _best_candidate_evidence(
+    source_record: dict[str, Any],
+    target_records: list[dict[str, Any]],
+    fields: list[str],
+    fallback: tuple[MatchFieldEvidence, ...],
+) -> tuple[MatchFieldEvidence, ...]:
+    """Explain the closest target candidate without changing match decisions."""
+    if not target_records:
+        return fallback
+
+    candidates = []
+
+    for target_index, target_record in enumerate(target_records):
+        evidence = _comparison_evidence(
+            source_record,
+            target_record,
+            fields,
+        )
+        exact_count = sum(item.outcome == "exact" for item in evidence)
+        comparable_count = sum(item.comparable for item in evidence)
+
+        # Prefer the most exact fields, then the most comparable fields.
+        # Original target order resolves ties deterministically.
+        candidates.append(
+            (-exact_count, -comparable_count, target_index, evidence)
+        )
+
+    return min(candidates, key=lambda item: item[:3])[3]
 
 
 def _explanation(
@@ -159,7 +235,9 @@ def match_entities_exact(
                     explanation=_explanation(
                         decision="review_required",
                         rule="duplicate_source_key",
-                        field_evidence=(),
+                        field_evidence=source_key_results[
+                            source_index
+                        ].field_evidence,
                         summary=(
                             "The source composite key occurs more than once."
                         ),
@@ -183,10 +261,28 @@ def match_entities_exact(
                     explanation=_explanation(
                         decision="no_match",
                         rule="no_exact_match",
-                        field_evidence=(),
+                        field_evidence=_best_candidate_evidence(
+                            source_records[source_index],
+                            target_records,
+                            fields,
+                            source_key_results[source_index].field_evidence,
+                        ),
                         summary=(
-                            "No target record has the same normalized "
-                            "composite key."
+
+                            "No target records are available for comparison."
+
+                            if not target_records
+
+                            else (
+
+                                "No target record has the same normalized "
+
+                                "composite key; evidence describes the closest "
+
+                                "target candidate."
+
+                            )
+
                         ),
                     ),
                 )
@@ -206,7 +302,9 @@ def match_entities_exact(
                     explanation=_explanation(
                         decision="review_required",
                         rule="duplicate_target_key",
-                        field_evidence=(),
+                        field_evidence=source_key_results[
+                            source_index
+                        ].field_evidence,
                         summary=(
                             "The target composite key occurs more than once."
                         ),
@@ -230,7 +328,9 @@ def match_entities_exact(
                     explanation=_explanation(
                         decision="review_required",
                         rule="target_already_assigned",
-                        field_evidence=(),
+                        field_evidence=source_key_results[
+                            source_index
+                        ].field_evidence,
                         summary="The matching target was already assigned.",
                     ),
                 )
