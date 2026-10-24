@@ -1,28 +1,76 @@
 """Deterministic exact matching using normalized composite keys."""
 
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from typing import Any
 
-from app.services.matching.models import EntityMatch
+from app.services.matching.models import (
+    EntityMatch,
+    MatchDecisionEvidence,
+    MatchExplanation,
+    MatchFieldEvidence,
+)
 from app.services.matching.similarity import normalize_for_similarity
 
 
-def _composite_key(
+@dataclass(frozen=True)
+class _CompositeKeyResult:
+    key: tuple[str, ...] | None
+    field_evidence: tuple[MatchFieldEvidence, ...]
+
+
+def _composite_key_result(
     record: dict[str, Any],
     fields: list[str],
-) -> tuple[str, ...] | None:
-    """Build a normalized composite key, rejecting incomplete keys."""
+) -> _CompositeKeyResult:
     values: list[str] = []
+    evidence: list[MatchFieldEvidence] = []
 
     for field in fields:
         normalized = normalize_for_similarity(record.get(field))
 
         if not normalized:
-            return None
+            evidence.append(
+                MatchFieldEvidence(
+                    field=field,
+                    outcome="missing",
+                    comparable=False,
+                    explanation_code="missing_value",
+                )
+            )
+            return _CompositeKeyResult(None, tuple(evidence))
 
         values.append(normalized)
+        evidence.append(
+            MatchFieldEvidence(
+                field=field,
+                outcome="exact",
+                score=1.0,
+                explanation_code="normalized_exact_match",
+            )
+        )
 
-    return tuple(values)
+    return _CompositeKeyResult(tuple(values), tuple(evidence))
+
+
+def _explanation(
+    *,
+    decision: str,
+    rule: str | None,
+    field_evidence: tuple[MatchFieldEvidence, ...],
+    summary: str,
+) -> MatchExplanation:
+    return MatchExplanation(
+        field_evidence=field_evidence,
+        decision=MatchDecisionEvidence(
+            decision=decision,
+            rule=rule,
+            comparable_field_count=sum(
+                item.comparable for item in field_evidence
+            ),
+            summary=summary,
+        ),
+    )
 
 
 def match_entities_exact(
@@ -48,14 +96,16 @@ def match_entities_exact(
     if len(set(fields)) != len(fields):
         raise ValueError("Matching fields must not contain duplicates.")
 
-    source_keys = [
-        _composite_key(record, fields)
+    source_key_results = [
+        _composite_key_result(record, fields)
         for record in source_records
     ]
-    target_keys = [
-        _composite_key(record, fields)
+    target_key_results = [
+        _composite_key_result(record, fields)
         for record in target_records
     ]
+    source_keys = [result.key for result in source_key_results]
+    target_keys = [result.key for result in target_key_results]
 
     source_counts = Counter(
         key for key in source_keys if key is not None
@@ -80,6 +130,16 @@ def match_entities_exact(
                     confidence=0.0,
                     method="exact",
                     reason="missing_matching_value",
+                    explanation=_explanation(
+                        decision="no_match",
+                        rule="missing_matching_value",
+                        field_evidence=source_key_results[
+                            source_index
+                        ].field_evidence,
+                        summary=(
+                            "A required composite-key field is missing."
+                        ),
+                    ),
                 )
             )
             continue
@@ -96,6 +156,14 @@ def match_entities_exact(
                     method="exact",
                     field_scores=field_scores,
                     reason="duplicate_source_key",
+                    explanation=_explanation(
+                        decision="review_required",
+                        rule="duplicate_source_key",
+                        field_evidence=(),
+                        summary=(
+                            "The source composite key occurs more than once."
+                        ),
+                    ),
                 )
             )
             continue
@@ -112,6 +180,15 @@ def match_entities_exact(
                     method="exact",
                     field_scores=field_scores,
                     reason="no_exact_match",
+                    explanation=_explanation(
+                        decision="no_match",
+                        rule="no_exact_match",
+                        field_evidence=(),
+                        summary=(
+                            "No target record has the same normalized "
+                            "composite key."
+                        ),
+                    ),
                 )
             )
             continue
@@ -126,6 +203,14 @@ def match_entities_exact(
                     method="exact",
                     field_scores=field_scores,
                     reason="duplicate_target_key",
+                    explanation=_explanation(
+                        decision="review_required",
+                        rule="duplicate_target_key",
+                        field_evidence=(),
+                        summary=(
+                            "The target composite key occurs more than once."
+                        ),
+                    ),
                 )
             )
             continue
@@ -142,6 +227,12 @@ def match_entities_exact(
                     method="exact",
                     field_scores=field_scores,
                     reason="target_already_assigned",
+                    explanation=_explanation(
+                        decision="review_required",
+                        rule="target_already_assigned",
+                        field_evidence=(),
+                        summary="The matching target was already assigned.",
+                    ),
                 )
             )
             continue
@@ -156,6 +247,14 @@ def match_entities_exact(
                 confidence=1.0,
                 method="exact",
                 field_scores=field_scores,
+                explanation=_explanation(
+                    decision="matched",
+                    rule="exact_composite_key_match",
+                    field_evidence=target_key_results[
+                        target_index
+                    ].field_evidence,
+                    summary="All composite-key fields matched exactly.",
+                ),
             )
         )
 

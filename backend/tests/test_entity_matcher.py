@@ -1,7 +1,9 @@
 import math
+from dataclasses import asdict
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from app.services.matching.entity_matcher import (
     match_entities,
@@ -33,6 +35,141 @@ def test_high_confidence_match():
     assert results[0].status == "matched"
     assert results[0].target_index == 0
     assert results[0].confidence >= 0.90
+
+
+def test_fuzzy_match_explains_fields_and_aggregate_contributions():
+    result = match_entities(
+        [{"name": "Rahul Kumar", "email": "rahul@example.com"}],
+        [{"name": "Rahul Kumar", "email": "rahul@example.com"}],
+        fields=["name", "email"],
+    )[0]
+
+    assert result.explanation is not None
+    assert [item.outcome for item in result.explanation.field_evidence] == [
+        "exact",
+        "exact",
+    ]
+    assert all(
+        item.contribution == 0.5
+        for item in result.explanation.field_evidence
+    )
+    assert sum(
+        item.contribution
+        for item in result.explanation.field_evidence
+        if item.contribution is not None
+    ) == result.confidence
+    assert result.explanation.decision.decision == "matched"
+    assert result.explanation.decision.rule == "high_confidence_threshold"
+    assert result.explanation.decision.threshold == 0.90
+
+
+def test_partial_and_conflicting_fields_are_distinguished():
+    result = match_entities(
+        [{"name": "Rahul Kumar", "email": "rahul@example.com"}],
+        [{"name": "Rahul K", "email": "zzzzzzzzzzzz"}],
+        fields=["name", "email"],
+    )[0]
+
+    evidence_by_field = {
+        item.field: item
+        for item in result.explanation.field_evidence
+    }
+
+    assert evidence_by_field["name"].outcome == "partial"
+    assert evidence_by_field["email"].outcome == "conflict"
+    assert evidence_by_field["email"].score == 0.0
+    assert evidence_by_field["email"].contribution == 0.0
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [None, pd.NA, pd.NaT, np.datetime64("NaT", "ns")],
+)
+def test_missing_values_are_explained_without_becoming_conflicts(missing):
+    result = match_entities(
+        [{"customer_id": missing}],
+        [{"customer_id": missing}],
+        fields=["customer_id"],
+    )[0]
+
+    field_evidence = result.explanation.field_evidence[0]
+
+    assert result.status == "no_match"
+    assert field_evidence.outcome == "missing"
+    assert field_evidence.comparable is False
+    assert field_evidence.score is None
+    assert field_evidence.contribution is None
+    assert result.explanation.decision.best_score == 0.0
+
+
+def test_review_threshold_decision_explains_actual_threshold():
+    result = match_entities(
+        [{"name": "Rahul Kumar"}],
+        [{"name": "Rahul K"}],
+        fields=["name"],
+        high_confidence_threshold=0.95,
+        review_threshold=0.90,
+    )[0]
+
+    decision = result.explanation.decision
+
+    assert result.status == "review_required"
+    assert decision.decision == "review_required"
+    assert decision.rule == "high_confidence_threshold"
+    assert decision.threshold == 0.95
+    assert decision.best_score == result.confidence
+    assert decision.second_best_score is None
+    assert decision.score_gap is None
+
+
+def test_ambiguity_explanation_contains_actual_candidate_scores():
+    result = match_entities(
+        [{"name": "Rahul Kumar"}],
+        [{"name": "Rahul K"}, {"name": "Rahul Kumar S"}],
+        fields=["name"],
+        high_confidence_threshold=0.98,
+        review_threshold=0.70,
+        ambiguity_margin=0.20,
+    )[0]
+
+    decision = result.explanation.decision
+
+    assert result.status == "review_required"
+    assert result.reason == "ambiguous_candidates"
+    assert decision.rule == "ambiguity_margin"
+    assert decision.best_score == result.confidence
+    assert decision.second_best_score is not None
+    assert decision.score_gap == (
+        decision.best_score - decision.second_best_score
+    )
+
+
+def test_explanation_has_no_raw_source_or_target_values():
+    source_value = "source-secret@example.com"
+    target_value = "target-secret@example.com"
+    result = match_entities(
+        [{"email": source_value}],
+        [{"email": target_value}],
+        fields=["email"],
+    )[0]
+
+    serialized = repr(asdict(result.explanation))
+
+    assert source_value not in serialized
+    assert target_value not in serialized
+
+
+def test_target_uniqueness_remains_unchanged_and_is_explained():
+    results = match_entities(
+        [{"name": "Rahul Kumar"}, {"name": "Rahul Kumar"}],
+        [{"name": "Rahul Kumar"}],
+        fields=["name"],
+    )
+
+    assert results[0].status == "matched"
+    assert results[1].status == "no_match"
+    assert results[1].reason == "no_candidate"
+    assert results[1].explanation.decision.rule == "no_candidate"
 
 
 def test_exact_match_across_multiple_fields_has_full_confidence():

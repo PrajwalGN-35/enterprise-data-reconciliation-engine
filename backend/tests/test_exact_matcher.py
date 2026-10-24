@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -33,6 +35,13 @@ def test_matches_normalized_composite_key():
         "email": 1.0,
     }
     assert result[0].reason is None
+    assert [
+        evidence.outcome
+        for evidence in result[0].explanation.field_evidence
+    ] == ["exact", "exact"]
+    assert result[0].explanation.decision.decision == "matched"
+    assert result[0].explanation.decision.rule == "exact_composite_key_match"
+    assert result[0].explanation.decision.comparable_field_count == 2
 
 
 def test_requires_every_composite_key_field_to_match():
@@ -46,6 +55,8 @@ def test_requires_every_composite_key_field_to_match():
     assert result[0].status == "no_match"
     assert result[0].reason == "no_exact_match"
     assert result[0].target_index is None
+    assert result[0].explanation.field_evidence == ()
+    assert result[0].explanation.decision.rule == "no_exact_match"
 
 
 @pytest.mark.parametrize(
@@ -74,6 +85,14 @@ def test_missing_composite_key_value_never_matches(
     assert result[0].status == "no_match"
     assert result[0].reason == "missing_matching_value"
     assert result[0].target_index is None
+    field_evidence = result[0].explanation.field_evidence[-1]
+    assert field_evidence.outcome == "missing"
+    assert field_evidence.comparable is False
+    assert field_evidence.score is None
+    assert field_evidence.contribution is None
+    assert result[0].explanation.decision.rule == (
+        "missing_matching_value"
+    )
 
 
 def test_reports_duplicate_source_keys_for_review():
@@ -89,6 +108,10 @@ def test_reports_duplicate_source_keys_for_review():
     assert all(item.status == "review_required" for item in result)
     assert all(item.reason == "duplicate_source_key" for item in result)
     assert all(item.target_index is None for item in result)
+    assert all(
+        item.explanation.decision.rule == "duplicate_source_key"
+        for item in result
+    )
 
 
 def test_reports_duplicate_target_keys_for_review():
@@ -103,6 +126,7 @@ def test_reports_duplicate_target_keys_for_review():
     assert result[0].status == "review_required"
     assert result[0].reason == "duplicate_target_key"
     assert result[0].target_index is None
+    assert result[0].explanation.decision.rule == "duplicate_target_key"
 
 
 def test_matches_independent_records_one_to_one():
@@ -148,6 +172,7 @@ def test_empty_target_returns_no_matches():
     assert len(result) == 1
     assert result[0].status == "no_match"
     assert result[0].reason == "no_exact_match"
+    assert result[0].explanation.decision.rule == "no_exact_match"
 
 
 @pytest.mark.parametrize("fields", [[], [" "], ["id", ""]])
@@ -183,3 +208,33 @@ def test_numeric_and_string_keys_follow_existing_normalization():
 
     assert result[0].status == "matched"
     assert result[0].target_index == 0
+
+
+def test_exact_explanation_serializes_without_raw_values():
+    source_value = "source-secret@example.com"
+    target_value = "target-secret@example.com"
+
+    result = match_entities_exact(
+        [{"email": source_value}],
+        [{"email": target_value}],
+        ["email"],
+    )[0]
+
+    serialized = repr(asdict(result.explanation))
+
+    assert source_value not in serialized
+    assert target_value not in serialized
+
+
+def test_entity_match_without_explanation_remains_compatible():
+    from app.services.matching.models import EntityMatch
+
+    result = EntityMatch(
+        source_index=0,
+        target_index=None,
+        status="no_match",
+        confidence=0.0,
+        method="exact",
+    )
+
+    assert result.explanation is None
