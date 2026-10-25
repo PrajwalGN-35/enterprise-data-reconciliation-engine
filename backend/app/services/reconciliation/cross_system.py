@@ -16,16 +16,6 @@ class CrossSystemIntegrationError(ValueError):
     """Raised when a supplied cross-system dataset is not usable."""
 
 
-_EXPECTED_WORKFLOW_VALIDATION_PREFIXES = (
-    "At least one matching field",
-    "At least one reconciliation field",
-    "Missing matching fields:",
-    "Missing reconciliation fields:",
-    "Thresholds must satisfy",
-    "Ambiguity margin must be between",
-)
-
-
 @dataclass(frozen=True)
 class CrossSystemDataset:
     """A supplied system dataset and its canonical field contract."""
@@ -83,7 +73,9 @@ def _mapped_dataframe(dataset: CrossSystemDataset) -> pd.DataFrame:
             "All dataframe column labels must be strings."
         )
 
-    mapping = dataset.field_mapping or {}
+    mapping = dataset.field_mapping
+    if mapping is None:
+        mapping = {}
     if not isinstance(mapping, dict):
         raise CrossSystemIntegrationError(
             "field_mapping must be a dictionary."
@@ -124,6 +116,65 @@ def _mapped_dataframe(dataset: CrossSystemDataset) -> pd.DataFrame:
 
     dataframe.columns = normalized_columns
     return dataframe
+
+
+def _validate_workflow_inputs(
+    source_dataframe: pd.DataFrame,
+    target_dataframe: pd.DataFrame,
+    matching_fields: list[str],
+    reconciliation_fields: list[str],
+    workflow_kwargs: dict[str, Any],
+) -> None:
+    if not matching_fields:
+        raise CrossSystemIntegrationError(
+            "At least one matching field is required."
+        )
+    if not reconciliation_fields:
+        raise CrossSystemIntegrationError(
+            "At least one reconciliation field is required."
+        )
+
+    for field_group, fields in (
+        ("matching", matching_fields),
+        ("reconciliation", reconciliation_fields),
+    ):
+        for dataframe, label in (
+            (source_dataframe, "source"),
+            (target_dataframe, "target"),
+        ):
+            missing_fields = [
+                field for field in fields if field not in dataframe.columns
+            ]
+            if missing_fields:
+                raise CrossSystemIntegrationError(
+                    f"Missing {field_group} fields: {missing_fields}"
+                )
+
+    high_confidence_threshold = workflow_kwargs.get(
+        "high_confidence_threshold",
+        0.90,
+    )
+    review_threshold = workflow_kwargs.get("review_threshold", 0.75)
+    ambiguity_margin = workflow_kwargs.get("ambiguity_margin", 0.05)
+    try:
+        thresholds_valid = (
+            0 <= review_threshold <= high_confidence_threshold <= 1
+        )
+        margin_valid = 0 <= ambiguity_margin <= 1
+    except TypeError as exc:
+        raise CrossSystemIntegrationError(
+            "Matching thresholds and ambiguity margin must be numbers."
+        ) from exc
+
+    if not thresholds_valid:
+        raise CrossSystemIntegrationError(
+            "Thresholds must satisfy "
+            "0 <= review_threshold <= high_confidence_threshold <= 1."
+        )
+    if not margin_valid:
+        raise CrossSystemIntegrationError(
+            "Ambiguity margin must be between 0 and 1."
+        )
 
 
 def _record_references(
@@ -180,18 +231,21 @@ def run_cross_system_reconciliation(
     source_dataframe = _mapped_dataframe(source)
     target_dataframe = _mapped_dataframe(target)
 
-    try:
-        workflow = run_reconciliation_workflow(
-            source_dataframe=source_dataframe,
-            target_dataframe=target_dataframe,
-            matching_fields=matching_fields,
-            reconciliation_fields=reconciliation_fields,
-            **workflow_kwargs,
-        )
-    except ValueError as exc:
-        if not str(exc).startswith(_EXPECTED_WORKFLOW_VALIDATION_PREFIXES):
-            raise
-        raise CrossSystemIntegrationError(str(exc)) from exc
+    _validate_workflow_inputs(
+        source_dataframe,
+        target_dataframe,
+        matching_fields,
+        reconciliation_fields,
+        workflow_kwargs,
+    )
+
+    workflow = run_reconciliation_workflow(
+        source_dataframe=source_dataframe,
+        target_dataframe=target_dataframe,
+        matching_fields=matching_fields,
+        reconciliation_fields=reconciliation_fields,
+        **workflow_kwargs,
+    )
 
     return CrossSystemWorkflowResult(
         source=source,

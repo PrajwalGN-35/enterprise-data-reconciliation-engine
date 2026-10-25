@@ -153,6 +153,136 @@ def test_expected_workflow_validation_is_translated():
         )
 
 
+@pytest.mark.parametrize("invalid_mapping", [[], (), 0, ""])
+def test_falsy_non_dictionary_mappings_are_rejected(invalid_mapping):
+    with pytest.raises(
+        CrossSystemIntegrationError,
+        match="field_mapping must be a dictionary",
+    ):
+        run_cross_system_reconciliation(
+            CrossSystemDataset(
+                "crm",
+                "customers",
+                pd.DataFrame([{"name": "Rahul"}]),
+                field_mapping=invalid_mapping,
+            ),
+            CrossSystemDataset(
+                "erp",
+                "customers",
+                pd.DataFrame([{"name": "Rahul"}]),
+            ),
+            matching_fields=["name"],
+            reconciliation_fields=["name"],
+        )
+
+
+def test_none_and_empty_mappings_are_valid():
+    for mapping in (None, {}):
+        result = run_cross_system_reconciliation(
+            CrossSystemDataset(
+                "crm",
+                "customers",
+                pd.DataFrame([{"name": "Rahul"}]),
+                field_mapping=mapping,
+            ),
+            CrossSystemDataset(
+                "erp",
+                "customers",
+                pd.DataFrame([{"name": "Rahul"}]),
+            ),
+            matching_fields=["name"],
+            reconciliation_fields=["name"],
+        )
+        assert result.workflow.matches[0].status == "matched"
+
+
+def test_valid_mapping_and_invalid_mapping_entries_remain_distinct():
+    valid = run_cross_system_reconciliation(
+        CrossSystemDataset(
+            "crm",
+            "customers",
+            pd.DataFrame([{"Full Name": "Rahul"}]),
+            field_mapping={"Full Name": "name"},
+        ),
+        CrossSystemDataset(
+            "erp",
+            "customers",
+            pd.DataFrame([{"name": "Rahul"}]),
+        ),
+        matching_fields=["name"],
+        reconciliation_fields=["name"],
+    )
+    assert valid.workflow.matches[0].status == "matched"
+
+    with pytest.raises(
+        CrossSystemIntegrationError,
+        match="canonical names must be non-empty strings",
+    ):
+        run_cross_system_reconciliation(
+            CrossSystemDataset(
+                "crm",
+                "customers",
+                pd.DataFrame([{"Full Name": "Rahul"}]),
+                field_mapping={"Full Name": None},
+            ),
+            CrossSystemDataset(
+                "erp",
+                "customers",
+                pd.DataFrame([{"name": "Rahul"}]),
+            ),
+            matching_fields=["name"],
+            reconciliation_fields=["name"],
+        )
+
+
+def test_mapping_to_missing_source_column_is_rejected():
+    with pytest.raises(
+        CrossSystemIntegrationError,
+        match="Mapped source columns are missing",
+    ):
+        run_cross_system_reconciliation(
+            CrossSystemDataset(
+                "crm",
+                "customers",
+                pd.DataFrame([{"name": "Rahul"}]),
+                field_mapping={"Missing ID": "customer_id"},
+            ),
+            CrossSystemDataset(
+                "erp",
+                "customers",
+                pd.DataFrame([{"name": "Rahul"}]),
+            ),
+            matching_fields=["name"],
+            reconciliation_fields=["name"],
+        )
+
+
+def test_validation_like_internal_value_error_is_not_reclassified(monkeypatch):
+    def fail_with_internal_error(**kwargs):
+        raise ValueError("Missing matching fields: internal invariant")
+
+    monkeypatch.setattr(
+        cross_system,
+        "run_reconciliation_workflow",
+        fail_with_internal_error,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Missing matching fields: internal invariant",
+    ):
+        run_cross_system_reconciliation(
+            CrossSystemDataset(
+                "crm", "customers", pd.DataFrame([{"name": "Rahul"}])
+            ),
+            CrossSystemDataset(
+                "erp", "customers", pd.DataFrame([{"name": "Rahul"}])
+            ),
+            matching_fields=["name"],
+            reconciliation_fields=["name"],
+        )
+
+
 def test_cross_system_mapping_does_not_mutate_input_dataframes():
     source_frame = pd.DataFrame([{"Source ID": "S-1", "Name": "Rahul"}])
     target_frame = pd.DataFrame([{"Target ID": "T-1", "Name": "Rahul"}])

@@ -6,7 +6,7 @@
 
 Mappings are applied before the existing deterministic column normalization. Column labels must be strings. Missing mapped columns, duplicate normalized columns, invalid metadata, missing record identifiers, incompatible matching fields, and invalid workflow configuration raise `CrossSystemIntegrationError`, a `ValueError` subtype. Empty DataFrames are accepted and produce an empty structured result.
 
-The adapter translates only the existing workflow validation messages for missing/empty matching or reconciliation fields, missing configured fields, and invalid threshold/ambiguity configuration. It preserves the original exception as the cause. Unexpected `TypeError` and unrelated `ValueError` exceptions from the workflow propagate unchanged so internal defects are not mislabeled as input errors.
+The adapter validates the existing workflow input contract before invocation for missing/empty matching or reconciliation fields, missing configured fields, and invalid threshold/ambiguity configuration. It raises `CrossSystemIntegrationError` with the original cause for threshold type errors. The workflow is then called without an exception catch, so unexpected `TypeError` and unrelated or validation-like `ValueError` exceptions propagate unchanged instead of being classified by message text.
 
 ## Traceability and behavior
 
