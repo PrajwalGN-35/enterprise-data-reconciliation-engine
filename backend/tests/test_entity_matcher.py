@@ -144,6 +144,48 @@ def test_ambiguity_explanation_contains_actual_candidate_scores():
     )
 
 
+def test_high_confidence_near_tie_requires_review_without_reservation():
+    results = match_entities(
+        [{"name": "Rahul Kumar"}],
+        [{"name": "Rahul Kumar"}, {"name": "Rahul Kumar"}],
+        fields=["name"],
+        ambiguity_margin=0.05,
+    )
+
+    result = results[0]
+    assert result.status == "review_required"
+    assert result.target_index is None
+    assert result.reason == "ambiguous_candidates"
+    assert result.confidence == 1.0
+    assert result.explanation.decision.score_gap == 0.0
+
+
+def test_equal_scores_are_deterministic_and_do_not_use_input_order_as_match():
+    targets = [{"name": "Rahul K"}, {"name": "Rahul Kumar S"}]
+
+    first = match_entities(
+        [{"name": "Rahul Kumar"}],
+        targets,
+        fields=["name"],
+        high_confidence_threshold=0.98,
+        review_threshold=0.70,
+        ambiguity_margin=0.20,
+    )[0]
+    second = match_entities(
+        [{"name": "Rahul Kumar"}],
+        list(reversed(targets)),
+        fields=["name"],
+        high_confidence_threshold=0.98,
+        review_threshold=0.70,
+        ambiguity_margin=0.20,
+    )[0]
+
+    assert first.status == second.status == "review_required"
+    assert first.target_index is None
+    assert second.target_index is None
+    assert first.explanation.decision.score_gap == second.explanation.decision.score_gap
+
+
 def test_explanation_has_no_raw_source_or_target_values():
     source_value = "source-secret@example.com"
     target_value = "target-secret@example.com"

@@ -213,8 +213,7 @@ def match_entities(
             )
 
         ranked_candidates.sort(
-            key=lambda item: item[0],
-            reverse=True,
+            key=lambda item: (-item[0], item[1]),
         )
 
         if not ranked_candidates:
@@ -273,9 +272,7 @@ def match_entities(
 
         if len(ranked_candidates) > 1:
             if (
-                best_score < high_confidence_threshold
-                and best_score - second_score
-                < ambiguity_margin
+                best_score - second_score < ambiguity_margin
             ):
                 results.append(
                     EntityMatch(
