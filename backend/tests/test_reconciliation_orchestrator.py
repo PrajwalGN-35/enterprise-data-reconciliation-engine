@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
 
+import app.services.reconciliation.orchestrator as orchestrator
 from app.services.reconciliation.orchestrator import (
     run_reconciliation_workflow,
 )
@@ -137,6 +138,61 @@ def test_workflow_detects_missing_target():
     assert result.summary.missing_target_record_count == 1
     assert result.summary.matched_record_count == 1
     assert result.summary.reconciliation_percentage == 50.0
+
+
+def test_workflow_invokes_candidate_generation_and_preserves_fuzzy_recall(
+    monkeypatch,
+):
+    calls = []
+    real_generator = orchestrator.generate_candidates
+
+    def recording_generator(*args, **kwargs):
+        candidates = real_generator(*args, **kwargs)
+        calls.append((kwargs, candidates))
+        return candidates
+
+    monkeypatch.setattr(
+        orchestrator,
+        "generate_candidates",
+        recording_generator,
+    )
+
+    result = run_reconciliation_workflow(
+        source_dataframe=pd.DataFrame(
+            [{"name": "Rahul Kumar", "amount": 100}]
+        ),
+        target_dataframe=pd.DataFrame(
+            [
+                {"name": "Rahul Kumer", "amount": 100},
+                {"name": "Anitha Rao", "amount": 100},
+            ]
+        ),
+        matching_fields=["name"],
+        reconciliation_fields=["amount"],
+    )
+
+    assert len(calls) == 1
+    assert calls[0][0]["fallback_prefix_length"] == 3
+    assert calls[0][0]["candidate_limit"] is None
+    assert [candidate.target_index for candidate in calls[0][1]] == [0]
+    assert result.matches[0].status == "matched"
+    assert result.matches[0].target_index == 0
+
+
+def test_workflow_falls_back_to_full_target_scan_when_no_candidates_exist():
+    result = run_reconciliation_workflow(
+        source_dataframe=pd.DataFrame(
+            [{"name": "Rahul Kumar", "amount": 100}]
+        ),
+        target_dataframe=pd.DataFrame(
+            [{"name": "Anitha Rao", "amount": 100}]
+        ),
+        matching_fields=["name"],
+        reconciliation_fields=["amount"],
+    )
+
+    assert result.matches[0].status == "no_match"
+    assert result.matches[0].reason == "confidence_below_review_threshold"
 
 
 def test_workflow_does_not_match_missing_identifiers():

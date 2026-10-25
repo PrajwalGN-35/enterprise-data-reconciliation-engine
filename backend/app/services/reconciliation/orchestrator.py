@@ -3,6 +3,7 @@ from typing import Any
 
 import pandas as pd
 
+from app.services.matching.candidate_generator import generate_candidates
 from app.services.matching.entity_matcher import match_entities
 from app.services.reconciliation.reconciler import (
     ReconciliationResult,
@@ -139,6 +140,21 @@ def run_reconciliation_workflow(
         normalized_target
     )
 
+    generated_candidates = generate_candidates(
+        source_records=source_records,
+        target_records=target_records,
+        field=matching_fields[0],
+        blocking_fields=matching_fields[1:],
+        fallback_prefix_length=3,
+        candidate_limit=None,
+    )
+    candidate_target_indices: dict[int, list[int]] = {}
+    for candidate in generated_candidates:
+        candidate_target_indices.setdefault(
+            candidate.source_index,
+            [],
+        ).append(candidate.target_index)
+
     matches = match_entities(
         source_records=source_records,
         target_records=target_records,
@@ -146,6 +162,7 @@ def run_reconciliation_workflow(
         high_confidence_threshold=high_confidence_threshold,
         review_threshold=review_threshold,
         ambiguity_margin=ambiguity_margin,
+        candidate_target_indices=candidate_target_indices,
     )
 
     reconciliation_results = reconcile_matches(

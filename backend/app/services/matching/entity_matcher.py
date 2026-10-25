@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 from app.services.matching.models import (
     EntityMatch,
@@ -155,6 +155,7 @@ def match_entities(
     high_confidence_threshold: float = DEFAULT_HIGH_CONFIDENCE_THRESHOLD,
     review_threshold: float = DEFAULT_REVIEW_THRESHOLD,
     ambiguity_margin: float = DEFAULT_AMBIGUITY_MARGIN,
+    candidate_target_indices: Mapping[int, Sequence[int]] | None = None,
 ) -> list[EntityMatch]:
     """
     Match source records against target records.
@@ -179,6 +180,36 @@ def match_entities(
             "Ambiguity margin must be between 0 and 1."
         )
 
+    if candidate_target_indices is not None:
+        for source_index, target_indices in candidate_target_indices.items():
+            if (
+                isinstance(source_index, bool)
+                or not isinstance(source_index, int)
+                or source_index < 0
+                or source_index >= len(source_records)
+            ):
+                raise ValueError(
+                    "Candidate source indices must reference source records."
+                )
+
+            if len(set(target_indices)) != len(target_indices):
+                raise ValueError(
+                    "Candidate target indices must not contain duplicates."
+                )
+
+            if any(
+                isinstance(target_index, bool)
+                or not isinstance(target_index, int)
+                or target_index < 0
+                or target_index >= len(target_records)
+                for target_index in target_indices
+            ):
+                raise ValueError(
+                    "Candidate target indices must reference target records."
+                )
+
+    all_target_indices = range(len(target_records))
+
     results: list[EntityMatch] = []
     used_target_indices: set[int] = set()
 
@@ -186,7 +217,14 @@ def match_entities(
         ranked_candidates: list[tuple[float, int, _ScoredCandidate]] = []
         evaluated_candidates: list[tuple[float, int, _ScoredCandidate]] = []
 
-        for target_index, target_record in enumerate(target_records):
+        candidate_indices = (
+            candidate_target_indices.get(source_index, all_target_indices)
+            if candidate_target_indices is not None
+            else all_target_indices
+        )
+
+        for target_index in candidate_indices:
+            target_record = target_records[target_index]
             if target_index in used_target_indices:
                 continue
 

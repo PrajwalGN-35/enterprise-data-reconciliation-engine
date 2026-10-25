@@ -186,6 +186,33 @@ def test_equal_scores_are_deterministic_and_do_not_use_input_order_as_match():
     assert first.explanation.decision.score_gap == second.explanation.decision.score_gap
 
 
+def test_candidate_indices_limit_targets_considered_by_matcher():
+    result = match_entities(
+        [{"name": "Rahul Kumar"}],
+        [{"name": "Rahul Kumar"}, {"name": "Rahul K"}],
+        fields=["name"],
+        candidate_target_indices={0: [1]},
+        high_confidence_threshold=0.95,
+        review_threshold=0.80,
+    )[0]
+
+    assert result.status == "review_required"
+    assert result.target_index == 1
+    assert result.confidence == 0.9
+
+
+def test_empty_candidate_map_falls_back_to_all_targets():
+    result = match_entities(
+        [{"name": "Rahul Kumar"}],
+        [{"name": "Rahul Kumar"}],
+        fields=["name"],
+        candidate_target_indices={},
+    )[0]
+
+    assert result.status == "matched"
+    assert result.target_index == 0
+
+
 def test_explanation_has_no_raw_source_or_target_values():
     source_value = "source-secret@example.com"
     target_value = "target-secret@example.com"
