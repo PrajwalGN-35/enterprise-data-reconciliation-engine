@@ -16,6 +16,16 @@ class CrossSystemIntegrationError(ValueError):
     """Raised when a supplied cross-system dataset is not usable."""
 
 
+_EXPECTED_WORKFLOW_VALIDATION_PREFIXES = (
+    "At least one matching field",
+    "At least one reconciliation field",
+    "Missing matching fields:",
+    "Missing reconciliation fields:",
+    "Thresholds must satisfy",
+    "Ambiguity margin must be between",
+)
+
+
 @dataclass(frozen=True)
 class CrossSystemDataset:
     """A supplied system dataset and its canonical field contract."""
@@ -178,7 +188,9 @@ def run_cross_system_reconciliation(
             reconciliation_fields=reconciliation_fields,
             **workflow_kwargs,
         )
-    except (TypeError, ValueError) as exc:
+    except ValueError as exc:
+        if not str(exc).startswith(_EXPECTED_WORKFLOW_VALIDATION_PREFIXES):
+            raise
         raise CrossSystemIntegrationError(str(exc)) from exc
 
     return CrossSystemWorkflowResult(
