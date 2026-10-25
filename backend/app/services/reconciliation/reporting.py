@@ -141,6 +141,10 @@ def _validate_workflow_result(result: CrossSystemWorkflowResult) -> None:
             raise CrossSystemReportError(
                 "Reconciliation source_index does not align with sources."
             )
+        if reconciliation.target_index != workflow.matches[index].target_index:
+            raise CrossSystemReportError(
+                "Match and reconciliation target_index values must agree."
+            )
         if reconciliation.target_index is not None and not (
             isinstance(reconciliation.target_index, int)
             and 0 <= reconciliation.target_index < target_count
@@ -305,9 +309,75 @@ def retrieve_cross_system_report(
         return None
     try:
         payload = json.loads(report.payload)
-        serialize_report_value(payload)
+        _validate_persisted_payload(payload, report)
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
         raise CrossSystemReportPayloadError(
             "Persisted cross-system report payload is invalid."
         ) from exc
     return payload
+
+
+def _validate_persisted_payload(
+    payload: Any,
+    report: CrossSystemReport,
+) -> None:
+    if not isinstance(payload, dict):
+        raise ValueError("Persisted report payload must be a JSON object.")
+
+    required_fields = {
+        "schema_version": str,
+        "report_id": str,
+        "generated_at": str,
+        "source": dict,
+        "target": dict,
+        "schema_comparison": dict,
+        "summary": dict,
+        "impact_analysis": dict,
+        "source_records": list,
+        "target_records": list,
+        "outcomes": list,
+        "counts": dict,
+    }
+    for field_name, expected_type in required_fields.items():
+        if field_name not in payload or not isinstance(
+            payload[field_name], expected_type
+        ):
+            raise ValueError(
+                f"Persisted report field '{field_name}' is invalid."
+            )
+
+    if payload["report_id"] != report.id:
+        raise ValueError("Persisted report ID does not match its database row.")
+    if payload["schema_version"] != report.schema_version:
+        raise ValueError(
+            "Persisted report schema version does not match its database row."
+        )
+
+    for role, expected_system, expected_dataset in (
+        ("source", report.source_system, report.source_dataset),
+        ("target", report.target_system, report.target_dataset),
+    ):
+        metadata = payload[role]
+        if (
+            metadata.get("system_name") != expected_system
+            or metadata.get("dataset_name") != expected_dataset
+        ):
+            raise ValueError(
+                f"Persisted {role} metadata does not match its database row."
+            )
+
+    counts = payload["counts"]
+    expected_counts = {
+        "source_records": len(payload["source_records"]),
+        "target_records": len(payload["target_records"]),
+        "outcomes": len(payload["outcomes"]),
+    }
+    if counts != expected_counts:
+        raise ValueError("Persisted report counts are inconsistent.")
+
+    if len(payload["outcomes"]) != len(payload["source_records"]):
+        raise ValueError(
+            "Persisted report outcomes do not align with source records."
+        )
+
+    serialize_report_value(payload)

@@ -151,6 +151,16 @@ def test_report_rejects_inconsistent_indexes():
         build_cross_system_report(result, report_id=str(uuid4()))
 
 
+def test_report_rejects_mismatched_match_and_reconciliation_target_indexes():
+    result = _result(
+        [{"source_id": "S-1", "name": "Rahul", "amount": 10}],
+        [{"target_id": "T-1", "name": "Rahul", "amount": 10}],
+    )
+    result.workflow.reconciliation_results[0].target_index = None
+    with pytest.raises(CrossSystemReportError, match="must agree"):
+        build_cross_system_report(result, report_id=str(uuid4()))
+
+
 def test_report_persistence_and_audit_are_retrievable():
     CrossSystemReport.__table__.create(bind=engine, checkfirst=True)
     result = _result(
@@ -238,6 +248,46 @@ def test_report_retrieval_rejects_corrupted_payload():
                 target_system="erp",
                 target_dataset="customers",
                 payload="{broken",
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize(
+    "mutate_payload, expected_detail",
+    [
+        (lambda payload, report_id: [], "JSON object"),
+        (lambda payload, report_id: {**payload, "report_id": str(uuid4())}, "report ID"),
+        (lambda payload, report_id: {**payload, "schema_version": "other"}, "schema version"),
+        (lambda payload, report_id: {key: value for key, value in payload.items() if key != "summary"}, "summary"),
+        (lambda payload, report_id: {**payload, "counts": {"source_records": 99}}, "counts"),
+    ],
+)
+def test_report_retrieval_rejects_valid_json_with_inconsistent_integrity(
+    mutate_payload,
+    expected_detail,
+):
+    CrossSystemReport.__table__.create(bind=engine, checkfirst=True)
+    result = _result(
+        [{"source_id": "S-1", "name": "Rahul", "amount": 10}],
+        [{"target_id": "T-1", "name": "Rahul", "amount": 10}],
+    )
+    report_id = str(uuid4())
+    payload = build_cross_system_report(result, report_id=report_id)
+    payload = mutate_payload(payload, report_id)
+    db = SessionLocal()
+    try:
+        db.add(
+            CrossSystemReport(
+                id=report_id,
+                schema_version="7.9.1",
+                source_system="crm",
+                source_dataset="customers",
+                target_system="erp",
+                target_dataset="customers",
+                payload=json.dumps(payload),
             )
         )
         db.commit()
