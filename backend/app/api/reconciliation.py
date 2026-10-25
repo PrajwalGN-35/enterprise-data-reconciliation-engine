@@ -17,6 +17,7 @@ from app.api.reconciliation_history_schemas import (
     ReconciliationRunHistoryResponse,
 )
 from app.api.reconciliation_schemas import ReconciliationRunResponse
+from app.api.cross_system_report_schemas import CrossSystemReportResponse
 from app.api.quality_assessment_schemas import (
     QualityAssessmentHistoryResponse,
     QualityAssessmentResponse,
@@ -37,11 +38,45 @@ from app.services.data_quality.workflow_quality import (
 from app.services.reconciliation.orchestrator import (
     run_reconciliation_workflow,
 )
+from app.services.reconciliation.reporting import (
+    CrossSystemReportError,
+    CrossSystemReportPayloadError,
+    retrieve_cross_system_report,
+)
 
 router = APIRouter(
     prefix="/reconciliation",
     tags=["Reconciliation"],
 )
+
+
+@router.get(
+    "/reports/{report_id}",
+    response_model=CrossSystemReportResponse,
+)
+def get_cross_system_report(
+    report_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        report = retrieve_cross_system_report(db, report_id)
+    except CrossSystemReportPayloadError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except CrossSystemReportError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if report is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Cross-system report '{report_id}' not found.",
+        )
+
+    return CrossSystemReportResponse(
+        report_id=report["report_id"],
+        schema_version=report["schema_version"],
+        created_at=report["generated_at"],
+        report=report,
+    )
 
 ALLOWED_EXTENSIONS = {".csv", ".xlsx", ".json"}
 
