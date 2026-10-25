@@ -45,6 +45,8 @@ def test_cross_system_mapping_preserves_identifiers_and_uses_workflow():
     assert result.workflow.matches[0].target_index == 0
     assert result.source_records[0].record_id == "CRM-1"
     assert result.target_records[0].record_id == "ERP-1"
+    assert result.source_records[0].role == "source"
+    assert result.target_records[0].role == "target"
     assert result.workflow.schema_comparison["summary"]["matched_column_count"] == 2
 
 
@@ -116,6 +118,66 @@ def test_cross_system_empty_inputs_return_structured_empty_result():
     assert result.workflow.matches == []
     assert result.source_records == ()
     assert result.target_records == ()
+
+
+def test_cross_system_rejects_non_string_column_labels_consistently():
+    dataset = CrossSystemDataset(
+        "crm",
+        "customers",
+        pd.DataFrame([["Rahul"]], columns=[1]),
+    )
+
+    with pytest.raises(
+        CrossSystemIntegrationError,
+        match="column labels must be strings",
+    ):
+        run_cross_system_reconciliation(
+            dataset,
+            CrossSystemDataset(
+                "erp",
+                "customers",
+                pd.DataFrame([{"name": "Rahul"}]),
+            ),
+            matching_fields=["name"],
+            reconciliation_fields=["name"],
+        )
+
+
+def test_business_identifier_can_be_null_or_duplicate_without_losing_row_identity():
+    result = run_cross_system_reconciliation(
+        CrossSystemDataset(
+            "crm",
+            "customers",
+            pd.DataFrame(
+                [
+                    {"id": None, "name": "Rahul"},
+                    {"id": "CRM-1", "name": "Rahul"},
+                    {"id": "CRM-1", "name": "Anitha"},
+                ]
+            ),
+            record_id_field="id",
+        ),
+        CrossSystemDataset(
+            "erp",
+            "customers",
+            pd.DataFrame([{"id": "ERP-1", "name": "Rahul"}]),
+            record_id_field="id",
+        ),
+        matching_fields=["name"],
+        reconciliation_fields=["name"],
+    )
+
+    assert [reference.record_index for reference in result.source_records] == [
+        0,
+        1,
+        2,
+    ]
+    assert pd.isna(result.source_records[0].record_id)
+    assert [reference.record_id for reference in result.source_records[1:]] == [
+        "CRM-1",
+        "CRM-1",
+    ]
+    assert all(reference.role == "source" for reference in result.source_records)
 
 
 def test_cross_system_preserves_ambiguity_and_target_uniqueness():

@@ -31,6 +31,7 @@ class CrossSystemDataset:
 class CrossSystemRecordReference:
     """Traceability metadata for one normalized workflow record."""
 
+    role: str
     system_name: str
     dataset_name: str
     record_index: int
@@ -62,6 +63,14 @@ def _mapped_dataframe(dataset: CrossSystemDataset) -> pd.DataFrame:
     if not isinstance(dataset.dataframe, pd.DataFrame):
         raise CrossSystemIntegrationError(
             "dataframe must be a pandas DataFrame."
+        )
+
+    if any(
+        not isinstance(column, str)
+        for column in dataset.dataframe.columns
+    ):
+        raise CrossSystemIntegrationError(
+            "All dataframe column labels must be strings."
         )
 
     mapping = dataset.field_mapping or {}
@@ -110,10 +119,12 @@ def _mapped_dataframe(dataset: CrossSystemDataset) -> pd.DataFrame:
 def _record_references(
     dataset: CrossSystemDataset,
     dataframe: pd.DataFrame,
+    role: str,
 ) -> tuple[CrossSystemRecordReference, ...]:
     if dataset.record_id_field is None:
         return tuple(
             CrossSystemRecordReference(
+                role=role,
                 system_name=dataset.system_name,
                 dataset_name=dataset.dataset_name,
                 record_index=index,
@@ -137,6 +148,7 @@ def _record_references(
 
     return tuple(
         CrossSystemRecordReference(
+            role=role,
             system_name=dataset.system_name,
             dataset_name=dataset.dataset_name,
             record_index=index,
@@ -173,6 +185,14 @@ def run_cross_system_reconciliation(
         source=source,
         target=target,
         workflow=workflow,
-        source_records=_record_references(source, source_dataframe),
-        target_records=_record_references(target, target_dataframe),
+        source_records=_record_references(
+            source,
+            source_dataframe,
+            "source",
+        ),
+        target_records=_record_references(
+            target,
+            target_dataframe,
+            "target",
+        ),
     )
