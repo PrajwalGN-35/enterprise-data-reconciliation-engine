@@ -220,6 +220,9 @@ def build_cross_system_report(
         "impact_analysis": serialize_report_value(
             result.workflow.impact_analysis
         ),
+        "quality_assessments": serialize_report_value(
+            result.quality_assessments
+        ),
         "source_records": [
             _reference_payload(reference)
             for reference in result.source_records

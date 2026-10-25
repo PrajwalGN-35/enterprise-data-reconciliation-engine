@@ -80,6 +80,8 @@ def test_report_preserves_workflow_summary_impact_and_traceability():
     assert report["source"] == {"system_name": "crm", "dataset_name": "customers"}
     assert report["summary"]["discrepancy_record_count"] == result.workflow.summary.discrepancy_record_count
     assert report["impact_analysis"] == serialize_report_value(result.workflow.impact_analysis)
+    assert set(report["quality_assessments"]) == {"source", "target"}
+    assert report["quality_assessments"]["source"]["dataset"] == "crm/customers"
     assert report["outcomes"][0]["source_reference"]["record_id"] == "S-1"
     assert report["outcomes"][0]["target_reference"]["record_id"] == "T-1"
     assert report["outcomes"][0]["match"]["explanation"] is not None

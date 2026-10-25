@@ -1,6 +1,6 @@
 """Cross-system dataset boundary for the reconciliation workflow."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import pandas as pd
@@ -8,6 +8,10 @@ import pandas as pd
 from app.services.reconciliation.orchestrator import (
     ReconciliationWorkflowResult,
     run_reconciliation_workflow,
+)
+from app.services.data_quality.scoring import score_quality_report
+from app.services.data_quality.workflow_quality import (
+    build_reconciliation_quality_engine,
 )
 from app.services.schema.normalizer import normalize_column_name
 
@@ -47,6 +51,9 @@ class CrossSystemWorkflowResult:
     workflow: ReconciliationWorkflowResult
     source_records: tuple[CrossSystemRecordReference, ...]
     target_records: tuple[CrossSystemRecordReference, ...]
+    quality_assessments: dict[str, dict[str, Any]] = field(
+        default_factory=dict
+    )
 
 
 def _validate_name(value: str, label: str) -> None:
@@ -247,6 +254,20 @@ def run_cross_system_reconciliation(
         **workflow_kwargs,
     )
 
+    quality_assessments: dict[str, dict[str, Any]] = {}
+    for role, dataset, dataframe in (
+        ("source", source, source_dataframe),
+        ("target", target, target_dataframe),
+    ):
+        quality_report = build_reconciliation_quality_engine(
+            dataframe=dataframe,
+            matching_fields=matching_fields,
+        ).run(
+            dataframe=dataframe,
+            dataset=f"{dataset.system_name}/{dataset.dataset_name}",
+        )
+        quality_assessments[role] = score_quality_report(quality_report)
+
     return CrossSystemWorkflowResult(
         source=source,
         target=target,
@@ -261,4 +282,5 @@ def run_cross_system_reconciliation(
             target_dataframe,
             "target",
         ),
+        quality_assessments=quality_assessments,
     )
