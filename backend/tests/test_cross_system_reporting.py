@@ -254,7 +254,13 @@ def test_report_retrieval_rejects_corrupted_payload():
         )
         db.commit()
     finally:
-        db.close()
+        try:
+            db.query(CrossSystemReport).filter(
+                CrossSystemReport.id == report_id
+            ).delete()
+            db.commit()
+        finally:
+            db.close()
 
 
 @pytest.mark.parametrize(
